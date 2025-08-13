@@ -1,0 +1,235 @@
+import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import api from '../config/api';
+import toast from 'react-hot-toast';
+
+// Estado inicial
+const initialState = {
+  user: null,
+  token: null,
+  isAuthenticated: false,
+  isLoading: true,
+};
+
+// Tipos de ações
+const AUTH_ACTIONS = {
+  LOGIN_START: 'LOGIN_START',
+  LOGIN_SUCCESS: 'LOGIN_SUCCESS',
+  LOGIN_FAILURE: 'LOGIN_FAILURE',
+  LOGOUT: 'LOGOUT',
+  LOAD_USER: 'LOAD_USER',
+  UPDATE_USER: 'UPDATE_USER',
+  SET_LOADING: 'SET_LOADING',
+};
+
+// Reducer
+const authReducer = (state, action) => {
+  switch (action.type) {
+    case AUTH_ACTIONS.LOGIN_START:
+      return {
+        ...state,
+        isLoading: true,
+      };
+    case AUTH_ACTIONS.LOGIN_SUCCESS:
+      return {
+        ...state,
+        user: action.payload.user,
+        token: action.payload.token,
+        isAuthenticated: true,
+        isLoading: false,
+      };
+    case AUTH_ACTIONS.LOGIN_FAILURE:
+      return {
+        ...state,
+        user: null,
+        token: null,
+        isAuthenticated: false,
+        isLoading: false,
+      };
+    case AUTH_ACTIONS.LOGOUT:
+      return {
+        ...initialState,
+        isLoading: false,
+      };
+    case AUTH_ACTIONS.LOAD_USER:
+      return {
+        ...state,
+        user: action.payload,
+        isLoading: false,
+      };
+    case AUTH_ACTIONS.UPDATE_USER:
+      return {
+        ...state,
+        user: { ...state.user, ...action.payload },
+      };
+    case AUTH_ACTIONS.SET_LOADING:
+      return {
+        ...state,
+        isLoading: action.payload,
+      };
+    default:
+      return state;
+  }
+};
+
+// Criar contexto
+const AuthContext = createContext();
+
+// Provider
+export const AuthProvider = ({ children }) => {
+  const [state, dispatch] = useReducer(authReducer, initialState);
+
+  // Carregar usuário do localStorage na inicialização
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const userData = localStorage.getItem('user');
+
+    if (token && userData) {
+      try {
+        const user = JSON.parse(userData);
+        dispatch({
+          type: AUTH_ACTIONS.LOGIN_SUCCESS,
+          payload: { user, token },
+        });
+        loadUser();
+      } catch (error) {
+        console.error('Error parsing user data:', error);
+        logout();
+      }
+    } else {
+      dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: false });
+    }
+  }, []);
+
+  // Carregar dados atualizados do usuário
+  const loadUser = async () => {
+    try {
+      const response = await api.get('/auth/profile');
+      dispatch({
+        type: AUTH_ACTIONS.LOAD_USER,
+        payload: response.data.data.user,
+      });
+    } catch (error) {
+      console.error('Error loading user:', error);
+      logout();
+    }
+  };
+
+  // Login
+  const login = async (email, password) => {
+    try {
+      dispatch({ type: AUTH_ACTIONS.LOGIN_START });
+
+      const response = await api.post('/auth/login', {
+        email,
+        password,
+      });
+
+      const { user, token } = response.data.data;
+
+      // Salvar no localStorage
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+
+      dispatch({
+        type: AUTH_ACTIONS.LOGIN_SUCCESS,
+        payload: { user, token },
+      });
+
+      toast.success('Login realizado com sucesso!');
+      return { success: true };
+    } catch (error) {
+      dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE });
+      
+      const message = error.response?.data?.message || 'Erro no login';
+      toast.error(message);
+      
+      return { success: false, message };
+    }
+  };
+
+  // Registro
+  const register = async (userData) => {
+    try {
+      dispatch({ type: AUTH_ACTIONS.LOGIN_START });
+
+      const response = await api.post('/auth/register', userData);
+      const { user, token } = response.data.data;
+
+      // Salvar no localStorage
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+
+      dispatch({
+        type: AUTH_ACTIONS.LOGIN_SUCCESS,
+        payload: { user, token },
+      });
+
+      toast.success('Conta criada com sucesso!');
+      return { success: true };
+    } catch (error) {
+      dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE });
+      
+      const message = error.response?.data?.message || 'Erro no registro';
+      toast.error(message);
+      
+      return { success: false, message };
+    }
+  };
+
+  // Logout
+  const logout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    dispatch({ type: AUTH_ACTIONS.LOGOUT });
+    toast.success('Logout realizado com sucesso!');
+  };
+
+  // Atualizar perfil
+  const updateProfile = async (updateData) => {
+    try {
+      const response = await api.patch('/auth/profile', updateData);
+      const updatedUser = response.data.data.user;
+
+      // Atualizar localStorage
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+
+      dispatch({
+        type: AUTH_ACTIONS.UPDATE_USER,
+        payload: updatedUser,
+      });
+
+      toast.success('Perfil atualizado com sucesso!');
+      return { success: true };
+    } catch (error) {
+      const message = error.response?.data?.message || 'Erro ao atualizar perfil';
+      toast.error(message);
+      return { success: false, message };
+    }
+  };
+
+  const value = {
+    ...state,
+    login,
+    register,
+    logout,
+    updateProfile,
+    loadUser,
+  };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+// Hook para usar o contexto
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth deve ser usado dentro de AuthProvider');
+  }
+  return context;
+};
+
+export default AuthContext;
