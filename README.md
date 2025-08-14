@@ -182,13 +182,13 @@ Após executar o projeto, você pode criar usuários com diferentes roles:
 - Real-time statistics
 - Improved UI/UX with modern design
 
-### 🚧 Sprint 3 - Advanced Features (In Planning)
-- File and media upload
-- Advanced agent management
-- Detailed conversation history
-- Reports and analytics
-- Performance optimizations
-- Advanced filtering and search
+### ✅ Sprint 3 - Advanced Features (Completed)
+- File and media upload system with drag-and-drop
+- Advanced agent management with availability tracking
+- Detailed conversation history with search and export (CSV/PDF)
+- Reports and analytics dashboard with charts
+- Performance optimizations (indexes, caching)
+- Advanced filtering and search capabilities
 
 ## 🔄 Development Roadmap
 
