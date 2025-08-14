@@ -9,7 +9,10 @@ import {
   Menu,
   X,
   Home,
-  UserCircle
+  UserCircle,
+  BarChart3,
+  UserCheck,
+  Shield
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.jsx';
 
@@ -36,6 +39,24 @@ const Sidebar = () => {
       icon: History,
       path: '/history',
       roles: ['client', 'agent', 'admin']
+    },
+    {
+      title: 'Analytics',
+      icon: BarChart3,
+      path: '/analytics',
+      roles: ['agent', 'admin']
+    },
+    {
+      title: 'Agentes',
+      icon: UserCheck,
+      path: '/agents',
+      roles: ['agent', 'admin']
+    },
+    {
+      title: 'Painel Admin',
+      icon: Shield,
+      path: '/admin',
+      roles: ['admin']
     },
     {
       title: 'Usuários',
@@ -118,8 +139,12 @@ const Sidebar = () => {
                   <p className="text-sm font-medium text-gray-900 truncate">
                     {user?.name}
                   </p>
+                  <p className="text-xs text-gray-600">
+                    {user?.company}
+                  </p>
                   <p className="text-xs text-gray-500 capitalize">
-                    {user?.role}
+                    {user?.role === 'admin' ? 'Administrador' : 
+                     user?.role === 'agent' ? 'Agente' : 'Cliente'}
                   </p>
                 </div>
               )}
