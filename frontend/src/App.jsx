@@ -82,7 +82,7 @@ function App() {
                     </MainLayout>
                   </SocketWrapper>
                 </PrivateRoute>
-              } 
+              }
             />
             <Route 
               path="/history" 

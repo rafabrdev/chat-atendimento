@@ -2,12 +2,13 @@ const express = require('express');
 const router = express.Router();
 const chatService = require('../services/chatService');
 const authMiddleware = require('../middleware/authMiddleware');
+const { requireRole } = require('../middleware/authMiddleware');
 const Conversation = require('../models/Conversation');
 
 // Aplicar middleware de autenticação para todas as rotas
 router.use(authMiddleware);
 
-// Criar nova conversa
+// Criar nova conversa - Clientes podem criar conversas
 router.post('/conversations', async (req, res) => {
   try {
     const { initialMessage, ...conversationBody } = req.body;
@@ -27,7 +28,7 @@ router.post('/conversations', async (req, res) => {
       const message = await Message.create({
         conversationId: conversation._id,
         sender: req.user._id,
-        senderType: req.user.role === 'agent' ? 'agent' : 'client',
+        senderType: (req.user.role === 'agent' || req.user.role === 'admin') ? 'agent' : 'client',
         content: initialMessage,
         type: 'text'
       });
@@ -84,8 +85,8 @@ router.get('/conversations/:id/messages', async (req, res) => {
   }
 });
 
-// Atribuir conversa a um agente
-router.patch('/conversations/:id/assign', async (req, res) => {
+// Atribuir conversa a um agente - Apenas admin pode atribuir
+router.patch('/conversations/:id/assign', requireRole('admin'), async (req, res) => {
   try {
     const { agentId } = req.body;
     const conversation = await chatService.assignConversationToAgent(
@@ -129,9 +130,21 @@ router.patch('/conversations/:id/assign', async (req, res) => {
   }
 });
 
-// Aceitar conversa (para agentes)
+// Aceitar conversa - Apenas agentes e admin
 router.patch('/conversations/:id/accept', async (req, res) => {
   try {
+    console.log('📌 Accept route hit');
+    console.log('📌 User:', req.user?.email, 'Role:', req.user?.role);
+    console.log('📌 Conversation ID:', req.params.id);
+    
+    // Verificar se é agente ou admin
+    if (req.user.role !== 'agent' && req.user.role !== 'admin') {
+      console.log('❌ User is not agent/admin:', req.user.role);
+      return res.status(403).json({ 
+        error: 'Apenas agentes e administradores podem aceitar conversas' 
+      });
+    }
+    
     const conversationId = req.params.id;
     const conversation = await chatService.assignConversationToAgent(
       conversationId,
@@ -171,7 +184,7 @@ router.patch('/conversations/:id/accept', async (req, res) => {
   }
 });
 
-// Fechar conversa
+// Fechar conversa - Todos podem fechar (cliente com confirmação no frontend)
 router.patch('/conversations/:id/close', async (req, res) => {
   try {
     // Verificar se a conversa já está fechada
@@ -200,7 +213,7 @@ router.patch('/conversations/:id/close', async (req, res) => {
   }
 });
 
-// Avaliar conversa (apenas para clientes)
+// Avaliar conversa - Apenas clientes podem avaliar
 router.post('/conversations/:id/rate', async (req, res) => {
   try {
     const { rating, comment } = req.body;
@@ -241,12 +254,12 @@ router.post('/conversations/:id/rate', async (req, res) => {
   }
 });
 
-// Reabrir conversa (apenas para agentes)
+// Reabrir conversa - Apenas agentes e admin
 router.patch('/conversations/:id/reopen', async (req, res) => {
   try {
     // Verificar se o usuário é agente ou admin
     if (req.user.role !== 'agent' && req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Apenas agentes podem reabrir conversas' });
+      return res.status(403).json({ error: 'Apenas agentes e admin podem reabrir conversas' });
     }
     
     const conversation = await Conversation.findById(req.params.id)
@@ -291,8 +304,12 @@ router.patch('/conversations/:id/reopen', async (req, res) => {
   }
 });
 
-// Status da fila
+// Status da fila - Apenas agentes e admin podem ver status da fila
 router.get('/queue/status', async (req, res) => {
+  // Verificar se é agente ou admin
+  if (req.user.role !== 'agent' && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Acesso negado' });
+  }
   try {
     // Usa o ID do usuário como fallback se não tiver companyId
     const companyId = req.user.companyId || req.user._id;
@@ -304,8 +321,8 @@ router.get('/queue/status', async (req, res) => {
   }
 });
 
-// Processar fila manualmente
-router.post('/queue/process', async (req, res) => {
+// Processar fila manualmente - Apenas admin
+router.post('/queue/process', requireRole('admin'), async (req, res) => {
   try {
     await chatService.processQueue();
     res.json({ message: 'Queue processing started' });
@@ -314,8 +331,12 @@ router.post('/queue/process', async (req, res) => {
   }
 });
 
-// Obter estatísticas do agente
+// Obter estatísticas do agente - Apenas agentes e admin
 router.get('/agent/stats', async (req, res) => {
+  // Verificar se é agente ou admin
+  if (req.user.role !== 'agent' && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Acesso negado' });
+  }
   try {
     const agentId = req.user._id;
     const today = new Date();
@@ -327,12 +348,23 @@ router.get('/agent/stats', async (req, res) => {
       updatedAt: { $gte: today }
     });
     
-    // Calcular estatísticas
+    // Calcular estatísticas incluindo avaliações
+    const closedConversations = todayConversations.filter(c => c.status === 'closed');
+    const ratedConversations = closedConversations.filter(c => c.rating);
+    
+    // Calcular média de satisfação
+    let avgSatisfaction = 0;
+    if (ratedConversations.length > 0) {
+      const totalRating = ratedConversations.reduce((sum, conv) => sum + (conv.rating || 0), 0);
+      avgSatisfaction = (totalRating / ratedConversations.length).toFixed(1);
+    }
+    
     const stats = {
       totalToday: todayConversations.length,
-      resolved: todayConversations.filter(c => c.status === 'closed').length,
-      avgResponseTime: 0, // Implementar cálculo se necessário
-      satisfaction: 0 // Implementar sistema de avaliação se necessário
+      resolved: closedConversations.length,
+      avgResponseTime: 0, // TODO: Implementar cálculo de tempo de resposta
+      satisfaction: avgSatisfaction,
+      totalRatings: ratedConversations.length
     };
     
     res.json(stats);

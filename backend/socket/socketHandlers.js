@@ -6,6 +6,13 @@ class SocketHandlers {
   constructor(io) {
     this.io = io;
     this.connectedUsers = new Map();
+    
+    // Configurar Socket.IO para baixa latência
+    if (this.io.engine) {
+      this.io.engine.opts.pingInterval = 10000; // Ping a cada 10 segundos
+      this.io.engine.opts.pingTimeout = 5000; // Timeout de 5 segundos
+      this.io.engine.opts.upgradeTimeout = 10000; // Timeout de upgrade
+    }
   }
 
   async handleConnection(socket) {
@@ -74,7 +81,7 @@ class SocketHandlers {
     socket.on('typing-stop', (data) => this.handleTypingStop(socket, data));
     socket.on('agent-available', () => this.handleAgentAvailable(socket));
     socket.on('agent-busy', () => this.handleAgentBusy(socket));
-    socket.on('ping', () => this.handlePing(socket));
+    socket.on('ping', (data) => this.handlePing(socket, data));
     socket.on('request-sync', () => this.handleRequestSync(socket));
   }
 
@@ -111,15 +118,18 @@ class SocketHandlers {
 
     // Verificar se o usuário tem acesso à conversa
     const Conversation = require('../models/Conversation');
-    const conversation = await Conversation.findOne({
-      _id: data.conversationId,
-      $or: [
-        { assignedAgentId: connection.userId },
-        { assignedAgent: connection.userId },
-        { client: connection.userId },
-        { participants: connection.userId }
-      ]
-    });
+    
+    // Admin e agentes podem acessar qualquer conversa
+    let conversation;
+    if (connection.role === 'admin' || connection.role === 'agent') {
+      conversation = await Conversation.findById(data.conversationId);
+    } else {
+      // Clientes só podem acessar suas próprias conversas
+      conversation = await Conversation.findOne({
+        _id: data.conversationId,
+        client: connection.userId
+      });
+    }
 
     if (conversation) {
       socket.join(`conversation:${data.conversationId}`);
@@ -156,7 +166,7 @@ class SocketHandlers {
         senderId: connection.userId,
         content: data.content,
         type: data.type || 'text',
-        senderType: connection.role
+        senderType: (connection.role === 'admin' || connection.role === 'agent') ? 'agent' : 'client'
       });
 
       console.log('Message saved:', message._id);
@@ -165,8 +175,15 @@ class SocketHandlers {
       const room = `conversation:${data.conversationId}`;
       console.log('Emitting to room:', room);
       
-      // Emitir no namespace root (sem /chat)
+      // Emitir no namespace root (sem /chat) - IMEDIATAMENTE
       this.io.to(room).emit('new-message', message);
+      
+      // Confirmar envio ao remetente para feedback instantâneo
+      socket.emit('message-sent', { 
+        conversationId: data.conversationId,
+        messageId: message._id,
+        timestamp: Date.now() 
+      });
       
       // Emitir atualização da conversa para todos os usuários da empresa
       if (connection.companyId) {
@@ -240,8 +257,13 @@ class SocketHandlers {
   }
 
   // Handler para ping/pong - mantém conexão viva
-  handlePing(socket) {
-    socket.emit('pong', { timestamp: Date.now() });
+  handlePing(socket, data) {
+    const latency = data ? Date.now() - data.timestamp : 0;
+    socket.emit('pong', { 
+      timestamp: Date.now(),
+      received: data?.timestamp,
+      latency // Calcular latência para monitoramento
+    });
   }
   
   // Handler para sincronização forçada

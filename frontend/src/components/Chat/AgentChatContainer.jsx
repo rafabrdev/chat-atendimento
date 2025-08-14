@@ -214,14 +214,23 @@ const AgentChatContainer = () => {
     // Se é uma conversa em espera, aceitar primeiro
     if (conversation.status === 'waiting') {
       try {
-        const { data } = await api.patch(`/chat/conversations/${conversation._id}/assign`, {
-          agentId: user._id || user.id
-        });
+        console.log('🔵 Aceitando conversa:', conversation._id);
+        // Usar /accept em vez de /assign - agentes podem aceitar
+        const { data } = await api.patch(`/chat/conversations/${conversation._id}/accept`);
         conversation = data;
         toast.success('Conversa aceita!');
+        console.log('✅ Conversa aceita com sucesso:', data);
       } catch (error) {
-        console.error('Erro ao aceitar conversa:', error);
-        toast.error('Erro ao aceitar conversa');
+        console.error('❌ Erro ao aceitar conversa:', error);
+        console.error('❌ Response:', error.response?.data);
+        
+        if (error.response?.status === 403) {
+          toast.error('Você não tem permissão para aceitar conversas');
+        } else if (error.response?.status === 404) {
+          toast.error('Conversa não encontrada');
+        } else {
+          toast.error(error.response?.data?.error || 'Erro ao aceitar conversa');
+        }
         return;
       }
     }

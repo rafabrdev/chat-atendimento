@@ -39,11 +39,18 @@ const AgentDashboard = ({ onAcceptConversation }) => {
   useEffect(() => {
     loadQueue();
     loadActiveConversations();
+    loadStats();
     
-    // Atualizar estatísticas após carregar dados
+    // Atualizar a cada 1 segundo para garantir dados em tempo real
     const interval = setInterval(() => {
-      loadStats();
-    }, 5000); // Atualizar a cada 5 segundos
+      // Só atualizar se não estiver carregando para evitar sobrecarga
+      if (!loading) {
+        loadStats();
+        // Atualizar fila e conversas ativas também
+        loadQueue();
+        loadActiveConversations();
+      }
+    }, 1000); // Atualizar a cada 1 segundo
 
     return () => clearInterval(interval);
   }, []);
@@ -176,11 +183,16 @@ const AgentDashboard = ({ onAcceptConversation }) => {
 
   const handleAcceptConversation = async (conversation) => {
     try {
-      const { data } = await api.patch(`/chat/conversations/${conversation._id}/assign`, {
-        agentId: localStorage.getItem('userId')
-      });
+      console.log('Aceitando conversa:', conversation._id);
+      
+      // Usar a rota /accept que é específica para agentes aceitarem conversas
+      const { data } = await api.patch(`/chat/conversations/${conversation._id}/accept`);
+      
+      console.log('Conversa aceita, dados retornados:', data);
       
       toast.success('Conversa aceita com sucesso!');
+      
+      // Chamar callback para abrir a conversa no chat
       onAcceptConversation(data);
       
       // Remover da fila local
@@ -190,7 +202,16 @@ const AgentDashboard = ({ onAcceptConversation }) => {
       setActiveConversations(prev => [data, ...prev]);
     } catch (error) {
       console.error('Erro ao aceitar conversa:', error);
-      toast.error('Erro ao aceitar conversa');
+      console.error('Detalhes do erro:', error.response?.data);
+      
+      // Verificar se é erro de permissão
+      if (error.response?.status === 403) {
+        toast.error('Você não tem permissão para aceitar conversas');
+      } else if (error.response?.status === 404) {
+        toast.error('Conversa não encontrada');
+      } else {
+        toast.error(error.response?.data?.error || 'Erro ao aceitar conversa');
+      }
     }
   };
 

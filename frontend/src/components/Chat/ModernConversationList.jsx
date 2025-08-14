@@ -243,13 +243,16 @@ const ModernConversationList = ({
             <Sparkles className="w-5 h-5 text-primary-600" />
             <h2 className="text-lg font-semibold text-gray-900">Conversas</h2>
           </div>
-          <button
-            onClick={onCreateConversation}
-            className="p-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-            title="Nova conversa"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
+          {/* Mostrar botão + apenas para agentes/admins. Clientes iniciam conversa ao enviar a primeira mensagem. */}
+          {user?.role !== 'client' && onCreateConversation && (
+            <button
+              onClick={onCreateConversation}
+              className="p-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+              title="Nova conversa"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         {/* Busca */}
@@ -310,12 +313,19 @@ const ModernConversationList = ({
           <div className="text-center py-12">
             <MessageCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
             <p className="text-gray-500 text-sm">Nenhuma conversa encontrada</p>
-            <button
-              onClick={onCreateConversation}
-              className="mt-4 text-primary-600 hover:text-primary-700 text-sm font-medium"
-            >
-              Iniciar nova conversa
-            </button>
+            {/* Clientes não podem abrir conversa vazia; instruir a iniciar pelo campo de mensagem. */}
+            {user?.role !== 'client' && onCreateConversation ? (
+              <button
+                onClick={onCreateConversation}
+                className="mt-4 text-primary-600 hover:text-primary-700 text-sm font-medium"
+              >
+                Iniciar nova conversa
+              </button>
+            ) : (
+              <p className="mt-4 text-xs text-gray-500">
+                Para iniciar um atendimento, digite sua primeira mensagem no painel ao lado.
+              </p>
+            )}
           </div>
         ) : (
           <>

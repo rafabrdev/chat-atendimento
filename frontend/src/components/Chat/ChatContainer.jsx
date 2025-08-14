@@ -3,6 +3,7 @@ import ModernConversationList from './ModernConversationList';
 import ModernChatWindow from './ModernChatWindow';
 import AgentDashboard from './AgentDashboard';
 import RatingModal from './RatingModal';
+import ConfirmModal from './ConfirmModal';
 import { socketService } from '../../lib/socket';
 import api from '../../config/api';
 import toast from 'react-hot-toast';
@@ -22,6 +23,8 @@ const ChatContainer = () => {
   const [showAgentDashboard, setShowAgentDashboard] = useState(true);
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [conversationToRate, setConversationToRate] = useState(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [conversationToClose, setConversationToClose] = useState(null);
   
   // Detectar se é agente
   const isAgent = user?.role === 'agent' || user?.role === 'admin';
@@ -208,11 +211,25 @@ const ChatContainer = () => {
         return conv;
       }));
       
-      // Se for a conversa atual, limpar seleção
+      // Se for a conversa atual
       if (selectedConversation?._id === data.conversationId) {
+        // Se for cliente, mostrar modal de avaliação obrigatório
+        if (!isAgent) {
+          // Verificar se já foi avaliada
+          const conversation = conversations.find(c => c._id === data.conversationId);
+          if (!conversation?.rating) {
+            setConversationToRate(data.conversationId);
+            setShowRatingModal(true);
+            toast.info('Por favor, avalie o atendimento');
+          } else {
+            toast.info('Conversa foi encerrada');
+          }
+        } else {
+          toast.info('Conversa foi encerrada');
+        }
+        
         setSelectedConversation(null);
         setMessages([]);
-        toast.info('Conversa foi encerrada');
       }
     };
 
@@ -288,6 +305,48 @@ const ChatContainer = () => {
   };
 
   const handleSelectConversation = async (conversation) => {
+    // Se for agente/admin e a conversa está em espera, aceitar automaticamente
+    if (isAgent && conversation.status === 'waiting') {
+      try {
+        console.log('🔵 Agente aceitando conversa em espera:', conversation._id);
+        console.log('🔵 User role:', user?.role);
+        console.log('🔵 Conversation status:', conversation.status);
+        
+        const { data } = await api.patch(`/chat/conversations/${conversation._id}/accept`);
+        
+        console.log('✅ Conversa aceita, resposta:', data);
+        
+        // Atualizar a conversa com os dados retornados
+        conversation = data;
+        
+        // Atualizar na lista de conversas
+        setConversations(prev => prev.map(conv => {
+          if (conv._id === conversation._id) {
+            return data;
+          }
+          return conv;
+        }));
+        
+        toast.success('Conversa aceita com sucesso!');
+      } catch (error) {
+        console.error('❌ Erro ao aceitar conversa:', error);
+        console.error('❌ Response data:', error.response?.data);
+        console.error('❌ Response status:', error.response?.status);
+        console.error('❌ Response headers:', error.response?.headers);
+        
+        if (error.response?.status === 401) {
+          toast.error('Erro de autenticação. Faça login novamente.');
+        } else if (error.response?.status === 403) {
+          toast.error('Você não tem permissão para aceitar esta conversa');
+        } else if (error.response?.status === 404) {
+          toast.error('Conversa não encontrada');
+        } else {
+          toast.error(error.response?.data?.error || 'Erro ao aceitar conversa');
+        }
+        return; // Não continuar se falhar
+      }
+    }
+    
     setSelectedConversation(conversation);
     
     // Atualizar atividade ao selecionar conversa
@@ -399,7 +458,7 @@ const ChatContainer = () => {
         _id: `temp-${Date.now()}`,
         conversationId: selectedConversation._id,
         sender: { _id: user._id || user.id, name: user.name },
-        senderType: isAgent ? 'agent' : 'client',
+        senderType: (user?.role === 'agent' || user?.role === 'admin') ? 'agent' : 'client',
         content,
         type,
         createdAt: new Date().toISOString(),
@@ -455,7 +514,45 @@ const ChatContainer = () => {
     }
   };
 
+  const handleConfirmCloseConversation = async (conversationId) => {
+    try {
+      // Verificar se a conversa já está fechada
+      const conversation = conversations.find(c => c._id === conversationId);
+      if (conversation?.status === 'closed') {
+        toast.warning('Esta conversa já está encerrada');
+        return;
+      }
+      
+      await api.patch(`/chat/conversations/${conversationId}/close`);
+      await loadConversations();
+      
+      if (selectedConversation?._id === conversationId) {
+        setSelectedConversation(prev => ({ ...prev, status: 'closed' }));
+      }
+      
+      toast.success('Conversa encerrada');
+      
+      // Mostrar modal de avaliação para cliente
+      setConversationToRate(conversationId);
+      setShowRatingModal(true);
+    } catch (error) {
+      console.error('Erro ao fechar conversa:', error);
+      if (error.response?.status === 400) {
+        toast.error('Esta conversa já está encerrada');
+      } else {
+        toast.error('Erro ao fechar conversa');
+      }
+    }
+  };
+
   const handleCloseConversation = async (conversationId) => {
+    // Se for cliente, mostrar modal de confirmação
+    if (!isAgent) {
+      setConversationToClose(conversationId);
+      setShowConfirmModal(true);
+      return;
+    }
+    
     try {
       // Verificar se a conversa já está fechada
       const conversation = conversations.find(c => c._id === conversationId);
@@ -530,7 +627,7 @@ const ChatContainer = () => {
     
     // Se o agente aceitou uma conversa, mostrar chat
     return (
-      <div className="flex h-screen bg-gray-50">
+      <div className="flex h-screen">
         <ModernConversationList
           conversations={conversations}
           selectedConversation={selectedConversation}
@@ -565,13 +662,13 @@ const ChatContainer = () => {
   // Interface para CLIENTES
   return (
     <>
-      <div className="flex h-screen bg-gray-50">
+      <div className="flex h-screen">
         {/* Sempre mostrar sidebar para clientes poderem criar nova conversa */}
         <ModernConversationList
           conversations={conversations}
           selectedConversation={selectedConversation}
           onSelectConversation={handleSelectConversation}
-          onCreateConversation={handleCreateConversation} // Cliente PODE criar conversa
+          onCreateConversation={null} // Cliente NÃO cria conversa vazia; inicia ao enviar a primeira mensagem
           loading={loading}
           isOpen={showSidebar}
           onClose={() => setShowSidebar(false)}
@@ -589,6 +686,25 @@ const ChatContainer = () => {
           isClient={!isAgent}
         />
       </div>
+      
+      {/* Modal de Confirmação */}
+      <ConfirmModal
+        isOpen={showConfirmModal}
+        onClose={() => {
+          setShowConfirmModal(false);
+          setConversationToClose(null);
+        }}
+        onConfirm={async () => {
+          if (conversationToClose) {
+            await handleConfirmCloseConversation(conversationToClose);
+          }
+        }}
+        title="Encerrar Conversa"
+        message="Tem certeza que deseja encerrar esta conversa? Após encerrar, você poderá avaliar o atendimento."
+        confirmText="Encerrar"
+        cancelText="Cancelar"
+        type="warning"
+      />
       
       {/* Modal de Avaliação */}
       <RatingModal
