@@ -21,7 +21,7 @@ class ChatService {
       });
 
       // Popular os dados do cliente
-      await conversation.populate('client', 'name email');
+      await conversation.populate('client', 'name email company');
       return conversation;
     } catch (error) {
       console.error('Error in createConversation:', error);
@@ -111,8 +111,8 @@ class ChatService {
     }
 
     const conversations = await Conversation.find(query)
-      .populate('client', 'name email role')
-      .populate('assignedAgent', 'name email role status')
+      .populate('client', 'name email role company')
+      .populate('assignedAgent', 'name email role status company')
       .sort({ lastActivity: -1 });
 
     // Adicionar última mensagem para cada conversa
@@ -148,8 +148,8 @@ class ChatService {
     }
 
     const conversations = await Conversation.find(query)
-      .populate('client', 'name email')
-      .populate('assignedAgent', 'name email role status')
+      .populate('client', 'name email company')
+      .populate('assignedAgent', 'name email role status company')
       .sort({ lastActivity: -1 });
 
     // Adicionar última mensagem para cada conversa
@@ -195,8 +195,8 @@ class ChatService {
         $addToSet: { participants: agentId }
       },
       { new: true }
-    ).populate('client', 'name email role')
-     .populate('assignedAgent', 'name email role status');
+    ).populate('client', 'name email role company')
+     .populate('assignedAgent', 'name email role status company');
 
     // Remover da fila
     await QueueEntry.deleteOne({ conversationId });

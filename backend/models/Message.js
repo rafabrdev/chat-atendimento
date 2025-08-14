@@ -35,6 +35,10 @@ const messageSchema = new mongoose.Schema({
     name: String,
     size: Number
   }],
+  files: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'File'
+  }],
   metadata: {
     type: mongoose.Schema.Types.Mixed,
     default: {}
