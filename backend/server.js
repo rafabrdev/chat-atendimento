@@ -14,6 +14,7 @@ const { generalLimiter } = require('./middleware/rateLimiter');
 
 // Importar rotas
 const authRoutes = require('./routes/auth');
+const chatRoutes = require('./routes/chatRoutes');
 
 const app = express();
 const server = http.createServer(app);
@@ -21,7 +22,7 @@ const server = http.createServer(app);
 // Configurar Socket.io
 const io = socketIo(server, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:3000",
+    origin: process.env.CLIENT_URL || "http://localhost:5173",
     methods: ["GET", "POST"]
   }
 });
@@ -35,7 +36,7 @@ app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 // CORS
 app.use(cors({
-  origin: process.env.CLIENT_URL || "http://localhost:3000",
+  origin: process.env.CLIENT_URL || "http://localhost:5173",
   credentials: true
 }));
 
@@ -58,6 +59,7 @@ app.get('/health', (req, res) => {
 
 // Rotas da API
 app.use('/api/auth', authRoutes);
+app.use('/api/chat', chatRoutes);
 
 // Rota 404
 app.use('*', (req, res) => {
@@ -71,19 +73,17 @@ app.use('*', (req, res) => {
 app.use(errorHandler);
 
 // Socket.io connection handling
+const SocketHandlers = require('./socket/socketHandlers');
+const socketHandlers = new SocketHandlers(io);
+
+// Usar namespace root em vez de /chat para simplicidade
 io.on('connection', (socket) => {
-  console.log(`User connected: ${socket.id}`);
-
-  // Exemplo de eventos básicos para próximas sprints
-  socket.on('join-room', (roomId) => {
-    socket.join(roomId);
-    console.log(`User ${socket.id} joined room ${roomId}`);
-  });
-
-  socket.on('disconnect', () => {
-    console.log(`User disconnected: ${socket.id}`);
-  });
+  socketHandlers.handleConnection(socket);
 });
+
+// Disponibilizar io para as rotas
+app.set('io', io);
+app.set('socketHandlers', socketHandlers);
 
 // Iniciar servidor
 const PORT = process.env.PORT || 5000;
