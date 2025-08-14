@@ -303,24 +303,49 @@ const ModernChatWindow = ({
           <div>
             <h3 className="font-medium text-gray-900 text-sm">
               {/* Mostrar nome correto baseado no papel do usuário */}
-              {user?.role === 'client' || user?.role === undefined
-                ? (conversation.assignedAgent?.name || 'Aguardando atendente')
-                : (conversation.client?.name || 'Cliente')}
+              {(() => {
+                if (user?.role === 'client' || user?.role === undefined) {
+                  // Cliente vendo o agente
+                  if (conversation.assignedAgent) {
+                    const agentName = conversation.assignedAgent.name || 'Agente';
+                    const agentCompany = conversation.assignedAgent.company || '';
+                    return agentCompany ? `${agentName} (${agentCompany})` : agentName;
+                  }
+                  return 'Aguardando atendente';
+                } else {
+                  // Agente/Admin vendo o cliente
+                  const clientName = conversation.client?.name || 'Cliente';
+                  const clientCompany = conversation.client?.company || '';
+                  return clientCompany ? `${clientName} (${clientCompany})` : clientName;
+                }
+              })()}
             </h3>
             <div className="flex items-center gap-2 text-xs text-gray-500">
-              <span>
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-medium ${
+                conversation.status === 'active' ? 'bg-green-100 text-green-700' :
+                conversation.status === 'waiting' ? 'bg-yellow-100 text-yellow-700' :
+                'bg-gray-100 text-gray-600'
+              }`}>
                 {conversation.status === 'active' ? '🟢 Ativo' : 
                  conversation.status === 'waiting' ? '⏳ Aguardando' : 
                  '⚫ Encerrado'}
               </span>
+              {/* Tag de role */}
               {conversation.status === 'active' && conversation.assignedAgent && (
                 <>
-                  <span>•</span>
-                  <span>
-                    {user?.role === 'client' 
-                      ? `Atendente: ${conversation.assignedAgent.name}`
-                      : `Cliente: ${conversation.client?.name || 'Anônimo'}`}
-                  </span>
+                  {user?.role === 'client' ? (
+                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
+                      conversation.assignedAgent.role === 'admin' 
+                        ? 'bg-purple-100 text-purple-700' 
+                        : 'bg-blue-100 text-blue-700'
+                    }`}>
+                      {conversation.assignedAgent.role === 'admin' ? 'Admin' : 'Suporte'}
+                    </span>
+                  ) : (
+                    <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                      Cliente
+                    </span>
+                  )}
                 </>
               )}
             </div>

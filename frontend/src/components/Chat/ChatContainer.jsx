@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import ModernConversationList from './ModernConversationList';
 import ModernChatWindow from './ModernChatWindow';
 import AgentDashboard from './AgentDashboard';
+import RatingModal from './RatingModal';
 import { socketService } from '../../lib/socket';
 import api from '../../config/api';
 import toast from 'react-hot-toast';
@@ -19,6 +20,8 @@ const ChatContainer = () => {
   const [sendingMessage, setSendingMessage] = useState(false);
   const [showSidebar, setShowSidebar] = useState(true);
   const [showAgentDashboard, setShowAgentDashboard] = useState(true);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [conversationToRate, setConversationToRate] = useState(null);
   
   // Detectar se é agente
   const isAgent = user?.role === 'agent' || user?.role === 'admin';
@@ -427,14 +430,25 @@ const ChatContainer = () => {
 
   const handleCreateConversation = async () => {
     try {
-      const { data } = await api.post('/chat/conversations', {
+      // Para clientes, criar conversa em status waiting
+      const conversationData = {
         priority: 'normal',
         tags: ['novo']
-      });
+      };
       
-      await loadConversations();
+      const { data } = await api.post('/chat/conversations', conversationData);
+      
+      // Adicionar a nova conversa à lista
+      setConversations(prev => [data, ...prev]);
       setSelectedConversation(data);
-      toast.success('Nova conversa criada');
+      
+      // Entrar na conversa via socket
+      socketService.joinConversation(data._id);
+      
+      // Carregar mensagens (provavelmente vazia)
+      setMessages([]);
+      
+      toast.success('Nova conversa iniciada! Digite sua mensagem.');
     } catch (error) {
       console.error('Erro ao criar conversa:', error);
       toast.error('Erro ao criar conversa');
@@ -458,6 +472,12 @@ const ChatContainer = () => {
       }
       
       toast.success('Conversa encerrada');
+      
+      // Se for cliente, mostrar modal de avaliação
+      if (!isAgent) {
+        setConversationToRate(conversationId);
+        setShowRatingModal(true);
+      }
     } catch (error) {
       console.error('Erro ao fechar conversa:', error);
       if (error.response?.status === 400) {
@@ -544,32 +564,52 @@ const ChatContainer = () => {
 
   // Interface para CLIENTES
   return (
-    <div className="flex h-screen bg-gray-50">
-      {/* Só mostrar sidebar se tiver conversas */}
-      {conversations.length > 0 && (
+    <>
+      <div className="flex h-screen bg-gray-50">
+        {/* Sempre mostrar sidebar para clientes poderem criar nova conversa */}
         <ModernConversationList
           conversations={conversations}
           selectedConversation={selectedConversation}
           onSelectConversation={handleSelectConversation}
-          onCreateConversation={null} // Cliente não pode criar conversa manualmente
+          onCreateConversation={handleCreateConversation} // Cliente PODE criar conversa
           loading={loading}
           isOpen={showSidebar}
           onClose={() => setShowSidebar(false)}
         />
-      )}
+        
+        <ModernChatWindow
+          conversation={selectedConversation}
+          messages={messages}
+          onSendMessage={handleSendMessage}
+          onCloseConversation={handleCloseConversation} // Cliente também pode encerrar
+          onNewConversation={null} // Cliente não tem botão de nova conversa
+          sendingMessage={sendingMessage}
+          onToggleSidebar={() => setShowSidebar(!showSidebar)}
+          showWelcomeMessage={!selectedConversation && conversations.length === 0}
+          isClient={!isAgent}
+        />
+      </div>
       
-      <ModernChatWindow
-        conversation={selectedConversation}
-        messages={messages}
-        onSendMessage={handleSendMessage}
-        onCloseConversation={handleCloseConversation} // Cliente também pode encerrar
-        onNewConversation={null} // Cliente não tem botão de nova conversa
-        sendingMessage={sendingMessage}
-        onToggleSidebar={() => setShowSidebar(!showSidebar)}
-        showWelcomeMessage={!selectedConversation && conversations.length === 0}
-        isClient={!isAgent}
+      {/* Modal de Avaliação */}
+      <RatingModal
+        isOpen={showRatingModal}
+        onClose={() => {
+          setShowRatingModal(false);
+          setConversationToRate(null);
+        }}
+        conversationId={conversationToRate}
+        onRatingSubmitted={(data) => {
+          console.log('Avaliação enviada:', data);
+          // Atualizar a conversa com a avaliação
+          setConversations(prev => prev.map(conv => {
+            if (conv._id === conversationToRate) {
+              return { ...conv, rating: data.rating };
+            }
+            return conv;
+          }));
+        }}
       />
-    </div>
+    </>
   );
 };
 
