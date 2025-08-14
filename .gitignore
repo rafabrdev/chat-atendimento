@@ -46,3 +46,13 @@ coverage/
 # Temporary files
 *.tmp
 temp/
+
+# Generated CSS files
+frontend/src/output.css
+
+# Documentation drafts
+sprint*.md
+*-guide.md
+
+# Misc files
+frontend/--force
