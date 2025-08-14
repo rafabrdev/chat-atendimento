@@ -109,9 +109,9 @@ const Sidebar = () => {
 
           {/* User Info */}
           <div className="p-4 border-b border-gray-200">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-primary-500 rounded-full flex items-center justify-center">
-                <UserCircle size={24} className="text-white" />
+            <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'}`}>
+              <div className={`${isCollapsed ? 'w-8 h-8' : 'w-10 h-10'} bg-primary-500 rounded-full flex items-center justify-center flex-shrink-0`}>
+                <UserCircle size={isCollapsed ? 20 : 24} className="text-white" />
               </div>
               {!isCollapsed && (
                 <div className="flex-1 min-w-0">
@@ -135,15 +135,16 @@ const Sidebar = () => {
                   key={item.path}
                   to={item.path}
                   className={({ isActive }) =>
-                    `flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${
+                    `flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${
                       isActive
-                        ? 'bg-primary-50 text-primary-700 border-r-2 border-primary-700'
+                        ? 'bg-primary-50 text-primary-700'
                         : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                     }`
                   }
                   onClick={() => setIsMobileOpen(false)}
+                  title={isCollapsed ? item.title : ''}
                 >
-                  <Icon size={20} />
+                  <Icon size={isCollapsed ? 22 : 20} className="flex-shrink-0" />
                   {!isCollapsed && <span>{item.title}</span>}
                 </NavLink>
               );
@@ -154,9 +155,10 @@ const Sidebar = () => {
           <div className="p-4 border-t border-gray-200">
             <button
               onClick={handleLogout}
-              className="flex items-center space-x-3 w-full px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
+              className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} w-full px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200`}
+              title={isCollapsed ? 'Sair' : ''}
             >
-              <LogOut size={20} />
+              <LogOut size={isCollapsed ? 22 : 20} className="flex-shrink-0" />
               {!isCollapsed && <span>Sair</span>}
             </button>
           </div>

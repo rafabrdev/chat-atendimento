@@ -252,6 +252,12 @@ const AgentChatContainer = () => {
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedConversation) return;
     
+    // Prevenir envio se conversa estiver fechada
+    if (selectedConversation.status === 'closed') {
+      toast.warning('Esta conversa está encerrada. Reabra-a para continuar.');
+      return;
+    }
+    
     try {
       setSendingMessage(true);
       
@@ -274,20 +280,48 @@ const AgentChatContainer = () => {
   const handleCloseConversation = async () => {
     if (!selectedConversation) return;
     
+    // Verificar se já está fechada
+    if (selectedConversation.status === 'closed') {
+      toast.warning('Esta conversa já está encerrada');
+      return;
+    }
+    
     try {
       await api.patch(`/chat/conversations/${selectedConversation._id}/close`);
       
       toast.success('Conversa encerrada');
       
+      // Atualizar conversa selecionada
+      setSelectedConversation(prev => ({ ...prev, status: 'closed' }));
+      
       // Recarregar conversas
       await loadConversations();
-      
-      // Limpar seleção
-      setSelectedConversation(null);
-      setMessages([]);
     } catch (error) {
       console.error('Erro ao encerrar conversa:', error);
-      toast.error('Erro ao encerrar conversa');
+      if (error.response?.status === 400) {
+        toast.error('Esta conversa já está encerrada');
+      } else {
+        toast.error('Erro ao encerrar conversa');
+      }
+    }
+  };
+  
+  const handleReopenConversation = async () => {
+    if (!selectedConversation) return;
+    
+    try {
+      const { data } = await api.patch(`/chat/conversations/${selectedConversation._id}/reopen`);
+      
+      toast.success('Conversa reaberta');
+      
+      // Atualizar conversa selecionada
+      setSelectedConversation(prev => ({ ...prev, status: 'active' }));
+      
+      // Recarregar conversas
+      await loadConversations();
+    } catch (error) {
+      console.error('Erro ao reabrir conversa:', error);
+      toast.error('Erro ao reabrir conversa');
     }
   };
 
@@ -316,9 +350,9 @@ const AgentChatContainer = () => {
   };
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-full">
       {/* Sidebar - Lista de Conversas */}
-      <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
+      <div className="w-80 bg-white border-r border-gray-200 flex flex-col h-full">
         {/* Header do Agente */}
         <div className="p-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white">
           <div className="flex items-center justify-between mb-4">
@@ -361,12 +395,12 @@ const AgentChatContainer = () => {
 
         {/* Filtros */}
         <div className="p-3 border-b border-gray-200">
-          <div className="flex space-x-2">
+          <div className="flex flex-wrap gap-1">
             {['all', 'waiting', 'active', 'closed'].map(filter => (
               <button
                 key={filter}
                 onClick={() => setActiveFilter(filter)}
-                className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
                   activeFilter === filter
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -483,13 +517,23 @@ const AgentChatContainer = () => {
                 </div>
                 
                 <div className="flex items-center space-x-2">
-                  <button
-                    onClick={handleCloseConversation}
-                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center space-x-2"
-                  >
-                    <XCircle className="h-4 w-4" />
-                    <span>Encerrar</span>
-                  </button>
+                  {selectedConversation.status !== 'closed' ? (
+                    <button
+                      onClick={handleCloseConversation}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center space-x-2"
+                    >
+                      <XCircle className="h-4 w-4" />
+                      <span>Encerrar</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleReopenConversation}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      <span>Reabrir</span>
+                    </button>
+                  )}
                   <button className="p-2 hover:bg-gray-100 rounded">
                     <MoreVertical className="h-5 w-5 text-gray-600" />
                   </button>
@@ -523,29 +567,37 @@ const AgentChatContainer = () => {
             </div>
 
             {/* Input de Mensagem */}
-            <div className="bg-white border-t border-gray-200 p-4">
-              <div className="flex items-center space-x-3">
-                <button className="p-2 hover:bg-gray-100 rounded">
-                  <Paperclip className="h-5 w-5 text-gray-600" />
-                </button>
-                <input
-                  type="text"
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                  placeholder="Digite sua mensagem..."
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <button
-                  onClick={handleSendMessage}
-                  disabled={sendingMessage || !newMessage.trim()}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-                >
-                  <Send className="h-4 w-4" />
-                  <span>Enviar</span>
-                </button>
+            {selectedConversation.status !== 'closed' ? (
+              <div className="bg-white border-t border-gray-200 p-4">
+                <div className="flex items-center space-x-3">
+                  <button className="p-2 hover:bg-gray-100 rounded">
+                    <Paperclip className="h-5 w-5 text-gray-600" />
+                  </button>
+                  <input
+                    type="text"
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                    placeholder="Digite sua mensagem..."
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    onClick={handleSendMessage}
+                    disabled={sendingMessage || !newMessage.trim()}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                  >
+                    <Send className="h-4 w-4" />
+                    <span>Enviar</span>
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="bg-gray-50 border-t border-gray-200 p-4">
+                <p className="text-center text-gray-500">
+                  Esta conversa foi encerrada. Clique em "Reabrir" para continuar o atendimento.
+                </p>
+              </div>
+            )}
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center bg-gray-50">

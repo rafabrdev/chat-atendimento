@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { format, isToday, isYesterday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useAuth } from '../../context/AuthContext';
 
 const ModernConversationList = ({ 
   conversations, 
@@ -22,6 +23,7 @@ const ModernConversationList = ({
   isOpen,
   onClose 
 }) => {
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
@@ -95,6 +97,25 @@ const ModernConversationList = ({
   const ConversationItem = ({ conversation }) => {
     const isSelected = selectedConversation?._id === conversation._id;
     const hasUnread = conversation.unreadCount > 0;
+    const isClient = user?.role === 'client';
+    
+    // Determinar o nome a ser exibido
+    let displayName = '';
+    if (isClient) {
+      // Para clientes, mostrar o nome do agente ou status
+      if (conversation.assignedAgent?.name) {
+        displayName = conversation.assignedAgent.name;
+      } else if (conversation.status === 'waiting') {
+        displayName = 'Aguardando Atendimento';
+      } else if (conversation.status === 'closed') {
+        displayName = 'Conversa Encerrada';
+      } else {
+        displayName = 'Suporte';
+      }
+    } else {
+      // Para agentes, mostrar o nome do cliente
+      displayName = conversation.client?.name || 'Cliente';
+    }
     
     return (
       <button
@@ -123,14 +144,7 @@ const ModernConversationList = ({
             <h4 className={`font-medium truncate ${
               isSelected ? 'text-primary-700' : 'text-gray-900'
             }`}>
-              {/* Mostrar nome do agente se houver, senão mostrar Cliente/Suporte */}
-              {conversation.status === 'active' && conversation.assignedAgent?.name 
-                ? conversation.assignedAgent.name 
-                : conversation.status === 'waiting' 
-                  ? 'Aguardando Atendimento'
-                  : conversation.status === 'closed'
-                    ? 'Conversa Encerrada'
-                    : 'Suporte'}
+              {displayName}
             </h4>
             <span className={`text-xs flex-shrink-0 ml-2 ${
               hasUnread ? 'text-primary-600 font-semibold' : 'text-gray-400'
@@ -198,7 +212,7 @@ const ModernConversationList = ({
       isOpen ? 'block' : 'hidden lg:block'
     }`}>
       {/* Header */}
-      <div className="p-4 border-b border-gray-200">
+      <div className="p-4 border-b border-gray-200 relative z-10">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-primary-600" />
@@ -239,7 +253,7 @@ const ModernConversationList = ({
           </button>
           
           {showFilters && (
-            <div className="flex flex-wrap gap-2 mt-3">
+            <div className="flex flex-wrap gap-2 mt-3 relative z-20">
               {['all', 'waiting', 'active', 'closed'].map(status => (
                 <button
                   key={status}

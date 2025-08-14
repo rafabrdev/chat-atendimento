@@ -5,8 +5,8 @@ const MainLayout = ({ children }) => {
   return (
     <div className="flex h-screen bg-gray-50">
       <Sidebar />
-      <main className="flex-1 overflow-hidden">
-        <div className="h-full p-4 lg:p-6">
+      <main className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 overflow-auto p-6">
           {children}
         </div>
       </main>

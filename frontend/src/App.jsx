@@ -15,6 +15,7 @@ import MainLayout from './components/Layout/MainLayout.jsx';
 import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
 import Dashboard from './pages/Dashboard.jsx';
+import SimpleDashboard from './pages/SimpleDashboard.jsx';
 import Conversations from './pages/Conversations.jsx';
 import History from './pages/History.jsx';
 import NotFound from './pages/NotFound.jsx';
@@ -58,11 +59,11 @@ function App() {
               path="/dashboard" 
               element={
                 <PrivateRoute>
-                  <SocketWrapper>
-                    <MainLayout>
-                      <Dashboard />
-                    </MainLayout>
-                  </SocketWrapper>
+                <SocketWrapper>
+                  <MainLayout>
+                    <Dashboard />
+                  </MainLayout>
+                </SocketWrapper>
                 </PrivateRoute>
               } 
             />

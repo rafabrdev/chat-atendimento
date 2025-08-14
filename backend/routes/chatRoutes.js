@@ -174,6 +174,12 @@ router.patch('/conversations/:id/accept', async (req, res) => {
 // Fechar conversa
 router.patch('/conversations/:id/close', async (req, res) => {
   try {
+    // Verificar se a conversa já está fechada
+    const existingConversation = await Conversation.findById(req.params.id);
+    if (existingConversation && existingConversation.status === 'closed') {
+      return res.status(400).json({ error: 'Conversa já está encerrada' });
+    }
+    
     const conversation = await chatService.closeConversation(
       req.params.id,
       req.user._id
@@ -190,6 +196,56 @@ router.patch('/conversations/:id/close', async (req, res) => {
     
     res.json(conversation);
   } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Reabrir conversa (apenas para agentes)
+router.patch('/conversations/:id/reopen', async (req, res) => {
+  try {
+    // Verificar se o usuário é agente ou admin
+    if (req.user.role !== 'agent' && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Apenas agentes podem reabrir conversas' });
+    }
+    
+    const conversation = await Conversation.findById(req.params.id)
+      .populate('client', 'name email')
+      .populate('assignedAgent', 'name email');
+    
+    if (!conversation) {
+      return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+    
+    if (conversation.status !== 'closed') {
+      return res.status(400).json({ error: 'Conversa não está fechada' });
+    }
+    
+    // Reabrir conversa
+    conversation.status = 'active';
+    conversation.closedAt = null;
+    conversation.closedBy = null;
+    conversation.lastActivity = new Date();
+    
+    // Se não tem agente atribuído, atribuir ao agente que está reabrindo
+    if (!conversation.assignedAgent) {
+      conversation.assignedAgent = req.user._id;
+    }
+    
+    await conversation.save();
+    
+    // Notificar via WebSocket
+    const io = req.app.get('io');
+    io.to(req.params.id).emit('conversation-reopened', {
+      conversationId: req.params.id,
+      status: 'active'
+    });
+    
+    // Notificar atualização da fila
+    io.emit('queue-updated');
+    
+    res.json(conversation);
+  } catch (error) {
+    console.error('Erro ao reabrir conversa:', error);
     res.status(400).json({ error: error.message });
   }
 });

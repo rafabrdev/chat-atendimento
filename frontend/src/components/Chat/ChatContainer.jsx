@@ -443,18 +443,52 @@ const ChatContainer = () => {
 
   const handleCloseConversation = async (conversationId) => {
     try {
+      // Verificar se a conversa já está fechada
+      const conversation = conversations.find(c => c._id === conversationId);
+      if (conversation?.status === 'closed') {
+        toast.warning('Esta conversa já está encerrada');
+        return;
+      }
+      
       await api.patch(`/chat/conversations/${conversationId}/close`);
       await loadConversations();
       
       if (selectedConversation?._id === conversationId) {
-        setSelectedConversation(null);
-        setMessages([]);
+        setSelectedConversation(prev => ({ ...prev, status: 'closed' }));
       }
       
       toast.success('Conversa encerrada');
     } catch (error) {
       console.error('Erro ao fechar conversa:', error);
-      toast.error('Erro ao fechar conversa');
+      if (error.response?.status === 400) {
+        toast.error('Esta conversa já está encerrada');
+      } else {
+        toast.error('Erro ao fechar conversa');
+      }
+    }
+  };
+  
+  const handleReopenConversation = async (conversationId) => {
+    try {
+      const { data } = await api.patch(`/chat/conversations/${conversationId}/reopen`);
+      
+      // Atualizar lista de conversas
+      setConversations(prev => prev.map(conv => {
+        if (conv._id === conversationId) {
+          return { ...conv, status: 'active' };
+        }
+        return conv;
+      }));
+      
+      // Atualizar conversa selecionada se for a mesma
+      if (selectedConversation?._id === conversationId) {
+        setSelectedConversation(prev => ({ ...prev, status: 'active' }));
+      }
+      
+      toast.success('Conversa reaberta');
+    } catch (error) {
+      console.error('Erro ao reabrir conversa:', error);
+      toast.error('Erro ao reabrir conversa');
     }
   };
 
@@ -495,12 +529,14 @@ const ChatContainer = () => {
           messages={messages}
           onSendMessage={handleSendMessage}
           onCloseConversation={handleCloseConversation}
+          onReopenConversation={isAgent ? handleReopenConversation : null}
           onNewConversation={() => {
             setShowAgentDashboard(true);
             setSelectedConversation(null);
           }}
           sendingMessage={sendingMessage}
           onToggleSidebar={() => setShowSidebar(!showSidebar)}
+          isAgent={isAgent}
         />
       </div>
     );

@@ -7,7 +7,8 @@ import {
   Sparkles,
   User,
   Bot,
-  ArrowDown
+  ArrowDown,
+  RefreshCw
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -19,11 +20,13 @@ const ModernChatWindow = ({
   messages, 
   onSendMessage, 
   onCloseConversation,
+  onReopenConversation,
   onNewConversation,
   sendingMessage,
   onToggleSidebar,
   showWelcomeMessage = false,
-  isClient = false
+  isClient = false,
+  isAgent = false
 }) => {
   const { user } = useAuth();
   const [messageInput, setMessageInput] = useState('');
@@ -216,9 +219,9 @@ const ModernChatWindow = ({
         </div>
 
         {/* Área de boas-vindas */}
-        <div className="flex-1 overflow-y-auto bg-gradient-to-b from-gray-50 to-white">
-          <div className="max-w-4xl mx-auto px-4 py-8">
-            <div className="text-center py-16">
+        <div className="flex-1 flex flex-col items-center justify-center bg-gradient-to-b from-gray-50 to-white relative">
+          <div className="max-w-4xl w-full px-4">
+            <div className="text-center mb-24">
               <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-primary-400 to-primary-600 rounded-2xl shadow-lg mb-6">
                 <Sparkles className="w-10 h-10 text-white" />
               </div>
@@ -240,14 +243,10 @@ const ModernChatWindow = ({
                 Digite sua mensagem abaixo para iniciar o atendimento
               </p>
             </div>
-          </div>
-        </div>
-
-        {/* Input de mensagem para iniciar chat */}
-        <div className="border-t border-gray-200 bg-white p-4">
-          <form onSubmit={handleSendMessage} className="max-w-4xl mx-auto">
-            <div className="relative flex items-end gap-2">
-              <div className="flex-1 relative">
+            
+            {/* Input de mensagem centralizado */}
+            <form onSubmit={handleSendMessage} className="max-w-2xl mx-auto">
+              <div className="relative">
                 <textarea
                   ref={inputRef}
                   value={messageInput}
@@ -255,8 +254,8 @@ const ModernChatWindow = ({
                   onKeyDown={handleKeyDown}
                   placeholder="Digite sua mensagem para iniciar o atendimento..."
                   rows="1"
-                  className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                  style={{ minHeight: '48px', maxHeight: '120px' }}
+                  className="w-full px-6 py-4 pr-14 border border-gray-300 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all shadow-lg bg-white"
+                  style={{ minHeight: '56px', maxHeight: '120px' }}
                   disabled={sendingMessage}
                   autoFocus
                 />
@@ -264,21 +263,21 @@ const ModernChatWindow = ({
                 <button
                   type="submit"
                   disabled={!messageInput.trim() || sendingMessage}
-                  className={`absolute right-2 bottom-2 p-2 rounded-lg transition-all ${
+                  className={`absolute right-3 top-1/2 -translate-y-1/2 p-3 rounded-xl transition-all ${
                     messageInput.trim() && !sendingMessage
-                      ? 'bg-primary-600 text-white hover:bg-primary-700'
+                      ? 'bg-primary-600 text-white hover:bg-primary-700 shadow-md'
                       : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   }`}
                 >
-                  <Send className="w-4 h-4" />
+                  <Send className="w-5 h-5" />
                 </button>
               </div>
-            </div>
-            
-            <p className="text-xs text-gray-500 mt-2 text-center">
-              Pressione Enter para enviar sua mensagem e iniciar o atendimento
-            </p>
-          </form>
+              
+              <p className="text-xs text-gray-500 mt-3 text-center">
+                Pressione Enter para enviar sua mensagem e iniciar o atendimento
+              </p>
+            </form>
+          </div>
         </div>
       </div>
     );
@@ -339,14 +338,27 @@ const ModernChatWindow = ({
             </button>
           )}
           
-          {/* Botão de encerrar para ambos (cliente e agente) */}
+          {/* Botões de encerrar/reabrir conversa */}
           {conversation.status !== 'closed' && onCloseConversation && (
             <button 
               onClick={() => onCloseConversation(conversation._id)}
-              className="p-2 hover:bg-red-50 rounded-lg transition-colors group"
+              className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-sm font-medium flex items-center gap-1.5"
               title="Encerrar conversa"
             >
-              <X className="w-5 h-5 text-gray-600 group-hover:text-red-600" />
+              <X className="w-4 h-4" />
+              <span>Encerrar</span>
+            </button>
+          )}
+          
+          {/* Botão de reabrir - apenas para agentes em conversas fechadas */}
+          {conversation.status === 'closed' && isAgent && onReopenConversation && (
+            <button 
+              onClick={() => onReopenConversation(conversation._id)}
+              className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-sm font-medium flex items-center gap-1.5"
+              title="Reabrir conversa"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Reabrir</span>
             </button>
           )}
         </div>
@@ -464,7 +476,7 @@ const ModernChatWindow = ({
                 <button
                   type="submit"
                   disabled={!messageInput.trim() || sendingMessage}
-                  className={`absolute right-2 bottom-2 p-2 rounded-lg transition-all ${
+                  className={`absolute right-2 top-1/2 -translate-y-1/2 p-2.5 rounded-lg transition-all ${
                     messageInput.trim() && !sendingMessage
                       ? 'bg-primary-600 text-white hover:bg-primary-700'
                       : 'bg-gray-100 text-gray-400 cursor-not-allowed'
