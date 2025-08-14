@@ -200,6 +200,47 @@ router.patch('/conversations/:id/close', async (req, res) => {
   }
 });
 
+// Avaliar conversa (apenas para clientes)
+router.post('/conversations/:id/rate', async (req, res) => {
+  try {
+    const { rating, comment } = req.body;
+    const conversationId = req.params.id;
+    
+    // Verificar se o usuário é o cliente da conversa
+    const conversation = await Conversation.findById(conversationId);
+    if (!conversation) {
+      return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+    
+    if (conversation.client.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Você não pode avaliar esta conversa' });
+    }
+    
+    // Atualizar avaliação
+    conversation.rating = rating;
+    conversation.ratingComment = comment;
+    conversation.ratedAt = new Date();
+    await conversation.save();
+    
+    // Notificar via WebSocket
+    const io = req.app.get('io');
+    io.emit('conversation-rated', {
+      conversationId,
+      rating,
+      comment
+    });
+    
+    res.json({ 
+      success: true, 
+      message: 'Avaliação registrada com sucesso',
+      conversation 
+    });
+  } catch (error) {
+    console.error('Erro ao avaliar conversa:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
 // Reabrir conversa (apenas para agentes)
 router.patch('/conversations/:id/reopen', async (req, res) => {
   try {
