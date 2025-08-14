@@ -129,6 +129,7 @@ export const AuthProvider = ({ children }) => {
       // Salvar no localStorage
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
+      localStorage.setItem('userId', user.id || user._id); // Salvar ID separadamente para fácil acesso
 
       dispatch({
         type: AUTH_ACTIONS.LOGIN_SUCCESS,
@@ -158,6 +159,7 @@ export const AuthProvider = ({ children }) => {
       // Salvar no localStorage
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
+      localStorage.setItem('userId', user.id || user._id); // Salvar ID separadamente para fácil acesso
 
       dispatch({
         type: AUTH_ACTIONS.LOGIN_SUCCESS,

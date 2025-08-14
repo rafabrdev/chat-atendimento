@@ -1,9 +1,10 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import { useSocket } from './hooks/useSocket';
 
 // Context
-import { AuthProvider } from './context/AuthContext.jsx';
+import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 
 // Components
 import PrivateRoute from './components/PrivateRoute.jsx';
@@ -18,6 +19,15 @@ import Conversations from './pages/Conversations.jsx';
 import History from './pages/History.jsx';
 import NotFound from './pages/NotFound.jsx';
 import Unauthorized from './pages/Unauthorized.jsx';
+import TestMode from './pages/TestMode.jsx';
+
+// Componente wrapper para inicializar socket
+function SocketWrapper({ children }) {
+  const { token, user } = useAuth();
+  useSocket(token, user);
+  
+  return children;
+}
 
 function App() {
   return (
@@ -48,9 +58,11 @@ function App() {
               path="/dashboard" 
               element={
                 <PrivateRoute>
-                  <MainLayout>
-                    <Dashboard />
-                  </MainLayout>
+                  <SocketWrapper>
+                    <MainLayout>
+                      <Dashboard />
+                    </MainLayout>
+                  </SocketWrapper>
                 </PrivateRoute>
               } 
             />
@@ -58,9 +70,11 @@ function App() {
               path="/conversations" 
               element={
                 <PrivateRoute>
-                  <MainLayout>
-                    <Conversations />
-                  </MainLayout>
+                  <SocketWrapper>
+                    <MainLayout>
+                      <Conversations />
+                    </MainLayout>
+                  </SocketWrapper>
                 </PrivateRoute>
               } 
             />
@@ -68,9 +82,19 @@ function App() {
               path="/history" 
               element={
                 <PrivateRoute>
-                  <MainLayout>
-                    <History />
-                  </MainLayout>
+                  <SocketWrapper>
+                    <MainLayout>
+                      <History />
+                    </MainLayout>
+                  </SocketWrapper>
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="/test-mode" 
+              element={
+                <PrivateRoute>
+                  <TestMode />
                 </PrivateRoute>
               } 
             />
