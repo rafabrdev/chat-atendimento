@@ -1,6 +1,11 @@
 const mongoose = require('mongoose');
 
 const conversationSchema = new mongoose.Schema({
+  companyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
+    required: false // Tornando opcional para simplificar
+  },
   participants: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -11,7 +16,13 @@ const conversationSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  // contactId removido temporariamente - Contact model não existe ainda
   assignedAgent: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
+  assignedAgentId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     default: null
@@ -30,6 +41,10 @@ const conversationSchema = new mongoose.Schema({
     type: String
   }],
   lastMessageAt: {
+    type: Date,
+    default: Date.now
+  },
+  lastActivity: {
     type: Date,
     default: Date.now
   },

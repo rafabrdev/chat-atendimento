@@ -2,6 +2,10 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
+  companyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company'
+  },
   email: {
     type: String,
     required: [true, 'Email é obrigatório'],
@@ -27,6 +31,15 @@ const userSchema = new mongoose.Schema({
     enum: ['client', 'agent', 'admin'],
     default: 'client'
   },
+  status: {
+    type: String,
+    enum: ['online', 'busy', 'away', 'offline'],
+    default: 'offline'
+  },
+  lastSeen: {
+    type: Date,
+    default: null
+  },
   profile: {
     phone: {
       type: String,
@@ -42,6 +55,10 @@ const userSchema = new mongoose.Schema({
     default: Date.now
   },
   isActive: {
+    type: Boolean,
+    default: true
+  },
+  active: {
     type: Boolean,
     default: true
   }
