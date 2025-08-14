@@ -157,33 +157,45 @@ Após executar o projeto, você pode criar usuários com diferentes roles:
 - Backend API: http://localhost:5000
 - Health Check: http://localhost:5000/health
 
-## 📊 Sprint 1 - Status
+## 📊 Project Status
 
-### ✅ Implementado
-- Autenticação completa (login/registro)
-- Layout responsivo com sidebar
-- Dashboard com estatísticas
-- Sistema de rotas protegidas
-- Context API para gerenciamento de estado
-- Configuração completa do ambiente
-- Páginas de erro (404, Unauthorized)
-- Sistema de notificações (Toast)
-- Middleware de segurança
+### ✅ Sprint 1 - Foundation (Completed)
+- Complete authentication system (login/register)
+- Responsive layout with sidebar
+- Basic dashboard structure
+- Protected routes system
+- Context API for state management
+- Complete environment setup
+- Error pages (404, Unauthorized)
+- Toast notification system
+- Security middleware
 
-### 🚧 Em Desenvolvimento (Sprint 2)
-- Sistema de chat em tempo real
-- Upload de arquivos e mídia
-- Gestão de agentes
-- Histórico detalhado
-- Relatórios e análises
+### ✅ Sprint 2 - Core Features (Completed)
+- Real-time chat system with Socket.io
+- Modern conversation interface
+- Agent assignment system
+- Real-time message synchronization
+- Conversation status management (waiting, active, closed)
+- Functional dashboard with real data
+- Client and agent differentiated views
+- Recent activities tracking
+- Real-time statistics
+- Improved UI/UX with modern design
 
-## 🔄 Próximas Sprints
+### 🚧 Sprint 3 - Advanced Features (In Planning)
+- File and media upload
+- Advanced agent management
+- Detailed conversation history
+- Reports and analytics
+- Performance optimizations
+- Advanced filtering and search
 
-- **Sprint 2**: Sistema de chat em tempo real
-- **Sprint 3**: Upload de arquivos e mídia
-- **Sprint 4**: Gestão de agentes
-- **Sprint 5**: Histórico e relatórios
-- **Sprint 6**: Deploy e otimizações
+## 🔄 Development Roadmap
+
+- **Sprint 3**: File uploads and advanced features
+- **Sprint 4**: Analytics and reporting
+- **Sprint 5**: Admin panel and management tools
+- **Sprint 6**: Deployment and production optimizations
 
 ## 🐛 Problemas Comuns
 
