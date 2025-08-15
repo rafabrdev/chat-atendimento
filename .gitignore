@@ -54,5 +54,15 @@ frontend/src/output.css
 sprint*.md
 *-guide.md
 
+# AWS Sensitive Files
+*.pem
+aws-resources.txt
+*-credentials.json
+cors-config.json
+bucket-policy.json
+
+# PDF files
+*.pdf
+
 # Misc files
 frontend/--force
