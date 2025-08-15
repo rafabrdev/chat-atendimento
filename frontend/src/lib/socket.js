@@ -122,8 +122,21 @@ class SocketService {
     this.emit('leave-conversation', { conversationId });
   }
 
-  sendMessage(conversationId, content, type = 'text') {
-    console.log('📤 Sending message via socket:', { conversationId, content, type });
+  sendMessage(conversationId, content, type = 'text', files = null) {
+    console.log('📤 Sending message via socket:', { 
+      conversationId, 
+      content, 
+      type,
+      files: files?.length || 0 
+    });
+    
+    // Debug detalhado dos arquivos
+    if (files && files.length > 0) {
+      console.log('📎 Files being sent:', JSON.stringify(files, null, 2));
+    } else {
+      console.log('⚠️ No files to send');
+    }
+    
     console.log('Socket connected:', this.socket?.connected);
     console.log('Socket ID:', this.socket?.id);
     
@@ -132,7 +145,18 @@ class SocketService {
       return false;
     }
     
-    this.emit('send-message', { conversationId, content, type });
+    // Preparar dados da mensagem
+    const messageData = { conversationId, content, type };
+    
+    // Adicionar arquivos se houver
+    if (files && files.length > 0) {
+      messageData.files = files;
+      console.log('✅ Files added to messageData');
+    }
+    
+    console.log('📨 Final messageData being sent:', JSON.stringify(messageData, null, 2));
+    
+    this.emit('send-message', messageData);
     return true;
   }
 

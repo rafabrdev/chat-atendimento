@@ -18,7 +18,10 @@ import {
   Building,
   Calendar,
   Tag,
-  MoreVertical
+  MoreVertical,
+  X,
+  File as FileIcon,
+  Image as ImageIcon
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -27,6 +30,7 @@ import api from '../../config/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../hooks/useSocket';
+import FileUpload from './FileUpload';
 
 const AgentChatContainer = () => {
   const { user } = useAuth();
@@ -40,6 +44,7 @@ const AgentChatContainer = () => {
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [showFileUpload, setShowFileUpload] = useState(false);
   
   // Estados do agente
   const [agentStatus, setAgentStatus] = useState('online');
@@ -340,6 +345,21 @@ const AgentChatContainer = () => {
     toast.success(`Status alterado para ${newStatus}`);
   };
 
+  const handleFilesUploaded = (files) => {
+    // Enviar mensagem com arquivos anexados
+    if (files && files.length > 0) {
+      // Criar mensagem com todos os arquivos
+      const fileNames = files.map(f => f.originalName).join(', ');
+      const fileMessage = `📎 ${fileNames}`;
+      
+      // Enviar mensagem com array de arquivos
+      socketService.sendMessage(selectedConversation._id, fileMessage, 'file', files);
+    }
+    
+    setShowFileUpload(false);
+    toast.success(`${files.length} arquivo(s) enviado(s) com sucesso!`);
+  };
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'waiting': return 'bg-yellow-100 text-yellow-800';
@@ -552,34 +572,135 @@ const AgentChatContainer = () => {
 
             {/* Área de Mensagens */}
             <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
-              {messages.map((message, index) => (
-                <div
-                  key={message._id || index}
-                  className={`mb-4 flex ${
-                    message.senderType === 'agent' ? 'justify-end' : 'justify-start'
-                  }`}
-                >
-                  <div className={`max-w-lg px-4 py-2 rounded-lg ${
-                    message.senderType === 'agent'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-white text-gray-800 border border-gray-200'
-                  }`}>
-                    <p className="text-sm">{message.content}</p>
-                    <p className={`text-xs mt-1 ${
-                      message.senderType === 'agent' ? 'text-blue-100' : 'text-gray-500'
+              {messages.map((message, index) => {
+                const isAgentMessage = message.senderType === 'agent';
+                const hasFiles = (message.files && message.files.length > 0) || 
+                               (message.attachments && message.attachments.length > 0) ||
+                               (message.metadata?.files && message.metadata.files.length > 0);
+                const files = message.files || message.attachments || message.metadata?.files || [];
+                
+                return (
+                  <div
+                    key={message._id || index}
+                    className={`mb-4 flex ${
+                      isAgentMessage ? 'justify-end' : 'justify-start'
+                    }`}
+                  >
+                    <div className={`max-w-lg px-4 py-2 rounded-lg ${
+                      isAgentMessage
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-white text-gray-800 border border-gray-200'
                     }`}>
-                      {format(new Date(message.createdAt), 'HH:mm', { locale: ptBR })}
-                    </p>
+                      {/* Renderizar arquivos se houver */}
+                      {hasFiles && (
+                        <div className="space-y-2 mb-2">
+                          {files.map((file, idx) => {
+                            const fileName = file.originalName || file.name || 'Arquivo';
+                            const fileType = file.fileType || file.type || 'file';
+                            const fileMimetype = file.mimetype || file.type;
+                            // Construir URL completa para o arquivo
+                            const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
+                            const fileUrl = file.url?.startsWith('http') 
+                              ? file.url 
+                              : `${baseUrl}${file.url}`;
+                            
+                            if (fileType === 'image' || fileMimetype?.startsWith('image/')) {
+                              return (
+                                <div key={idx} className="block">
+                                  <img 
+                                    src={fileUrl} 
+                                    alt={fileName}
+                                    className="max-w-full rounded cursor-pointer hover:opacity-90"
+                                    style={{ maxHeight: '200px' }}
+                                    onClick={() => window.open(fileUrl, '_blank')}
+                                    onError={(e) => {
+                                      e.target.style.display = 'none';
+                                      e.target.nextSibling.style.display = 'flex';
+                                    }}
+                                  />
+                                  <div 
+                                    className="hidden items-center space-x-2 p-2 bg-white/10 rounded cursor-pointer"
+                                    onClick={() => window.open(fileUrl, '_blank')}
+                                  >
+                                    <ImageIcon className="w-4 h-4" />
+                                    <span className="text-xs">{fileName}</span>
+                                  </div>
+                                </div>
+                              );
+                            } else {
+                              return (
+                                <a
+                                  key={idx}
+                                  href={fileUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={`flex items-center space-x-2 p-2 rounded transition-colors ${
+                                    isAgentMessage 
+                                      ? 'bg-white/20 hover:bg-white/30' 
+                                      : 'bg-gray-100 hover:bg-gray-200'
+                                  }`}
+                                >
+                                  <FileIcon className="w-4 h-4 flex-shrink-0" />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-xs font-medium truncate">
+                                      {fileName}
+                                    </p>
+                                    {file.size && (
+                                      <p className="text-xs opacity-75">
+                                        {(file.size / 1024).toFixed(1)} KB
+                                      </p>
+                                    )}
+                                  </div>
+                                  <span className="text-xs opacity-75">Baixar</span>
+                                </a>
+                              );
+                            }
+                          })}
+                        </div>
+                      )}
+                      <p className="text-sm">{message.content}</p>
+                      <p className={`text-xs mt-1 ${
+                        isAgentMessage ? 'text-blue-100' : 'text-gray-500'
+                      }`}>
+                        {format(new Date(message.createdAt), 'HH:mm', { locale: ptBR })}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
+
+            {/* Modal de Upload de Arquivos */}
+            {showFileUpload && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold">Enviar Arquivos</h3>
+                    <button
+                      onClick={() => setShowFileUpload(false)}
+                      className="p-1 hover:bg-gray-100 rounded"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <FileUpload
+                    conversationId={selectedConversation._id}
+                    onFilesUploaded={handleFilesUploaded}
+                    maxFiles={5}
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Input de Mensagem */}
             {selectedConversation.status !== 'closed' ? (
               <div className="bg-white border-t border-gray-200 p-4">
                 <div className="flex items-center space-x-3">
-                  <button className="p-2 hover:bg-gray-100 rounded">
+                  <button 
+                    onClick={() => setShowFileUpload(true)}
+                    className="p-2 hover:bg-gray-100 rounded"
+                    title="Anexar arquivo"
+                  >
                     <Paperclip className="h-5 w-5 text-gray-600" />
                   </button>
                   <input

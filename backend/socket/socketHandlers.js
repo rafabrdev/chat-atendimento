@@ -157,17 +157,33 @@ class SocketHandlers {
     console.log('Received message:', { 
       from: connection.userId, 
       conversationId: data.conversationId, 
-      content: data.content 
+      content: data.content,
+      files: data.files ? data.files.length : 0
     });
+    
+    // Debug detalhado dos arquivos
+    if (data.files && data.files.length > 0) {
+      console.log('📎 Files received in socket:', JSON.stringify(data.files, null, 2));
+    } else {
+      console.log('⚠️ No files in message data');
+    }
 
     try {
-      const message = await chatService.sendMessage({
+      // Preparar dados da mensagem
+      const messageData = {
         conversationId: data.conversationId,
         senderId: connection.userId,
         content: data.content,
         type: data.type || 'text',
         senderType: (connection.role === 'admin' || connection.role === 'agent') ? 'agent' : 'client'
-      });
+      };
+
+      // Adicionar arquivos se houver
+      if (data.files && data.files.length > 0) {
+        messageData.files = data.files;
+      }
+
+      const message = await chatService.sendMessage(messageData);
 
       console.log('Message saved:', message._id);
 

@@ -52,16 +52,42 @@ class ChatService {
       throw new Error('Conversation not found');
     }
 
-    // Criar mensagem
-    const message = await Message.create({
+    // Mapear tipo para valores válidos do enum
+    let messageType = data.type || 'text';
+    if (!['text', 'image', 'file', 'audio', 'video', 'document', 'system'].includes(messageType)) {
+      // Se o tipo não é válido, usar 'file' como padrão para arquivos
+      messageType = 'file';
+    }
+    
+    // Preparar dados da mensagem
+    const messageData = {
       conversationId: data.conversationId,
       sender: data.senderId,
       senderId: data.senderId,
       senderType: data.senderType,
       content: data.content,
-      type: data.type || 'text',
+      type: messageType,
       metadata: data.metadata
-    });
+    };
+
+    // Adicionar arquivos se houver
+    if (data.files && data.files.length > 0) {
+      // Não salvar attachments, apenas metadados dos arquivos no campo metadata
+      messageData.metadata = {
+        ...messageData.metadata,
+        files: data.files.map(file => ({
+          _id: file._id,
+          originalName: file.originalName || file.name,
+          url: file.url,
+          fileType: file.fileType || file.type,
+          size: file.size,
+          mimetype: file.mimetype || file.type
+        }))
+      };
+    }
+
+    // Criar mensagem
+    const message = await Message.create(messageData);
 
     // Atualizar última atividade da conversa
     await Conversation.findByIdAndUpdate(data.conversationId, {
@@ -69,10 +95,32 @@ class ChatService {
       lastMessageAt: new Date()
     });
 
-    // Popular dados do sender
+    // Popular dados do sender e arquivos
     await message.populate('sender', 'name email role');
+    if (message.files && message.files.length > 0) {
+      await message.populate('files');
+    }
+    
+    // Converter para objeto e garantir estrutura de files
+    const msgObj = message.toObject();
+    
+    // Se tem metadata.files, copiar para files no nível raíz para compatibilidade com frontend
+    if (msgObj.metadata && msgObj.metadata.files) {
+      msgObj.files = msgObj.metadata.files;
+    }
+    // Se tem attachments mas não tem files, criar estrutura
+    else if (msgObj.attachments && msgObj.attachments.length > 0) {
+      msgObj.files = msgObj.attachments.map(att => ({
+        _id: att._id,
+        originalName: att.name,
+        url: att.url,
+        fileType: att.type,
+        size: att.size,
+        mimetype: att.type
+      }));
+    }
 
-    return message;
+    return msgObj;
   }
 
   async getConversationsForUser(userId, userRole, status, assignedAgentId) {
@@ -168,9 +216,33 @@ class ChatService {
   }
 
   async getConversationMessages(conversationId) {
-    return Message.find({ conversationId })
+    const messages = await Message.find({ conversationId })
       .populate('sender', 'name email role')
+      .populate('files') // Popular arquivos se houver
       .sort({ createdAt: 1 });
+    
+    // Para cada mensagem, garantir que os files estejam disponíveis
+    return messages.map(msg => {
+      const msgObj = msg.toObject();
+      
+      // Se tem metadata.files, copiar para files no nível raíz
+      if (msgObj.metadata && msgObj.metadata.files) {
+        msgObj.files = msgObj.metadata.files;
+      }
+      // Se tem attachments mas não tem files, criar estrutura de files
+      else if (msgObj.attachments && msgObj.attachments.length > 0 && (!msgObj.files || msgObj.files.length === 0)) {
+        msgObj.files = msgObj.attachments.map(att => ({
+          _id: att._id,
+          originalName: att.name,
+          url: att.url,
+          fileType: att.type,
+          size: att.size,
+          mimetype: att.type
+        }));
+      }
+      
+      return msgObj;
+    });
   }
 
   async assignConversationToAgent(conversationId, agentId) {

@@ -189,13 +189,41 @@ Após executar o projeto, você pode criar usuários com diferentes roles:
 - Reports and analytics dashboard with charts
 - Performance optimizations (indexes, caching)
 - Advanced filtering and search capabilities
+- File rendering with preview for images
+- Clickable download links for all file types
+- Support for multiple file formats (PDF, images, audio, documents)
+
+### 🐛 Bug Fixes & Improvements (Latest)
+- ✅ Fixed file upload for all user types (client, agent, admin)
+- ✅ Corrected file metadata transmission through sockets
+- ✅ Implemented proper file rendering in agent chat interface
+- ✅ Added clickable image previews that open in new tabs
+- ✅ Fixed backend message schema to properly store file metadata
+- ✅ Improved file URL construction for proper static file serving
+- ✅ Added comprehensive file type support with appropriate icons
+- ✅ Fixed socket event handling for file uploads
+- ✅ Ensured file persistence in database with metadata.files structure
 
 ## 🔄 Development Roadmap
 
-- **Sprint 3**: File uploads and advanced features
-- **Sprint 4**: Analytics and reporting
-- **Sprint 5**: Admin panel and management tools
-- **Sprint 6**: Deployment and production optimizations
+### ⏳ Sprint 4 - Analytics & Reporting (In Progress)
+- Advanced analytics dashboard
+- Customizable reports generation
+- Performance metrics tracking
+- Customer satisfaction metrics
+
+### 📋 Sprint 5 - Admin Panel (Planned)
+- Complete admin management interface
+- User management system
+- System configuration panel
+- Bulk operations support
+
+### 🚀 Sprint 6 - Production Ready (Planned)
+- Production deployment optimizations
+- Advanced caching strategies
+- Load balancing configuration
+- Monitoring and logging system
+- Backup and recovery procedures
 
 ## 🐛 Problemas Comuns
 

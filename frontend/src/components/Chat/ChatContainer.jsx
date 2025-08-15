@@ -364,7 +364,7 @@ const ChatContainer = () => {
     await loadMessages(conversation._id);
   };
 
-  const handleSendMessage = async (content, type = 'text') => {
+  const handleSendMessage = async (content, messageData = null) => {
     if (!content.trim()) return;
     
     try {
@@ -427,13 +427,22 @@ const ChatContainer = () => {
         }
       }
       
-      console.log('Enviando mensagem:', { conversationId: selectedConversation._id, content, type });
+      // Preparar dados da mensagem
+      const type = messageData?.type || 'text';
+      const files = messageData?.files || null;
+      
+      console.log('Enviando mensagem:', { 
+        conversationId: selectedConversation._id, 
+        content, 
+        type,
+        files: files?.length || 0 
+      });
       
       // Atualizar atividade ao enviar mensagem
       socketService.updateActivity();
       
-      // Enviar mensagem via socket
-      const sent = socketService.sendMessage(selectedConversation._id, content, type);
+      // Enviar mensagem via socket com arquivos se houver
+      const sent = socketService.sendMessage(selectedConversation._id, content, type, files);
       
       if (!sent) {
         console.error('Failed to send message - socket not connected');
@@ -461,6 +470,13 @@ const ChatContainer = () => {
         senderType: (user?.role === 'agent' || user?.role === 'admin') ? 'agent' : 'client',
         content,
         type,
+        files: files || [],
+        attachments: files ? files.map(f => ({
+          url: f.url,
+          type: f.fileType,
+          name: f.originalName,
+          size: f.size
+        })) : [],
         createdAt: new Date().toISOString(),
         isOptimistic: true
       };
