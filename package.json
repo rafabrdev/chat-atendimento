@@ -18,5 +18,8 @@
     "livechat"
   ],
   "author": "Sua Empresa",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "mongodb": "^6.18.0"
+  }
 }
