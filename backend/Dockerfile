@@ -27,8 +27,10 @@ COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
 # Copiar código da aplicação
 COPY --chown=nodejs:nodejs . .
 
-# Criar diretório de uploads
-RUN mkdir -p uploads && chown -R nodejs:nodejs uploads
+# Criar diretórios de uploads com subpastas
+RUN mkdir -p uploads/images uploads/documents uploads/audio uploads/videos && \
+    chown -R nodejs:nodejs uploads && \
+    chmod -R 755 uploads
 
 # Mudar para usuário não-root
 USER nodejs
