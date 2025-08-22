@@ -7,16 +7,25 @@ const uploadsDir = path.join(__dirname, '..', 'uploads');
 const subDirs = ['images', 'documents', 'videos', 'audio', 'others'];
 
 // Create main uploads directory and subdirectories
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-subDirs.forEach(dir => {
-  const dirPath = path.join(uploadsDir, dir);
-  if (!fs.existsSync(dirPath)) {
-    fs.mkdirSync(dirPath, { recursive: true });
+// Use try-catch to handle permission errors gracefully
+try {
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
   }
-});
+
+  subDirs.forEach(dir => {
+    const dirPath = path.join(uploadsDir, dir);
+    if (!fs.existsSync(dirPath)) {
+      try {
+        fs.mkdirSync(dirPath, { recursive: true });
+      } catch (err) {
+        console.log(`Directory ${dir} might already exist or have permission issues:`, err.message);
+      }
+    }
+  });
+} catch (err) {
+  console.log('Upload directories might already exist or have permission issues:', err.message);
+}
 
 // Determine subdirectory based on file type
 const getSubDirectory = (mimetype) => {

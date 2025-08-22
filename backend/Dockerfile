@@ -28,7 +28,7 @@ COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
 COPY --chown=nodejs:nodejs . .
 
 # Criar diretórios de uploads com subpastas
-RUN mkdir -p uploads/images uploads/documents uploads/audio uploads/videos && \
+RUN mkdir -p uploads/images uploads/documents uploads/audio uploads/videos uploads/others && \
     chown -R nodejs:nodejs uploads && \
     chmod -R 755 uploads
 
