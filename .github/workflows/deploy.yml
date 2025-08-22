@@ -177,18 +177,18 @@ jobs:
           echo "$EC2_SSH_KEY" > private_key.pem
           chmod 600 private_key.pem
           
-          # Deploy via SSH
-          ssh -o StrictHostKeyChecking=no -i private_key.pem ${EC2_USER}@${EC2_HOST} << 'ENDSSH'
+          # Deploy via SSH with environment variables
+          ssh -o StrictHostKeyChecking=no -i private_key.pem ${EC2_USER}@${EC2_HOST} << ENDSSH
             # Ensure Docker is installed
             if ! command -v docker &> /dev/null; then
               echo "Installing Docker..."
               sudo yum update -y
               sudo yum install -y docker git
               sudo service docker start
-              sudo usermod -a -G docker $USER
+              sudo usermod -a -G docker \$USER
               
               # Install Docker Compose
-              sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+              sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-\$(uname -s)-\$(uname -m)" -o /usr/local/bin/docker-compose
               sudo chmod +x /usr/local/bin/docker-compose
             fi
             
@@ -202,26 +202,26 @@ jobs:
             git checkout staging
             git pull origin staging
             
-            # Create .env file with secrets (using environment variables)
-            cat > .env << 'ENVFILE'
-NODE_ENV=staging
-PORT=5000
-MONGODB_URI=${{ secrets.MONGODB_URI }}
-JWT_SECRET=${{ secrets.JWT_SECRET }}
-AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
-AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
-S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
-AWS_REGION=us-east-1
-CLIENT_URL=http://${{ secrets.EC2_HOST }}
-VITE_API_URL=http://${{ secrets.EC2_HOST }}:5000/api
-VITE_SOCKET_URL=http://${{ secrets.EC2_HOST }}:5000
-ENVFILE
+            # Create backend .env file using echo commands
+            echo "NODE_ENV=staging" > backend/.env
+            echo "PORT=3001" >> backend/.env
+            echo "MONGODB_URI=${{ secrets.MONGODB_URI }}" >> backend/.env
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> backend/.env
+            echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> backend/.env
+            echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> backend/.env
+            echo "S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME_STAGING }}" >> backend/.env
+            echo "AWS_REGION=us-east-1" >> backend/.env
+            echo "CLIENT_URL=http://${{ secrets.EC2_HOST }}:3000" >> backend/.env
+            
+            # Create frontend .env file
+            echo "VITE_API_URL=http://${{ secrets.EC2_HOST }}:3001/api" > frontend/.env
+            echo "VITE_SOCKET_URL=http://${{ secrets.EC2_HOST }}:3001" >> frontend/.env
             
             # Stop existing containers
             docker-compose down || true
             
             # Start services
-            docker-compose -f docker-compose.staging.yml up -d --build
+            docker-compose -f docker-staging.yml up -d --build
             
             # Clean old images
             docker image prune -f
@@ -235,7 +235,7 @@ ENVFILE
       - name: Health Check
         run: |
           sleep 20
-          response=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.EC2_HOST }}:5000/health || echo "000")
+          response=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.EC2_HOST }}:3001/health || echo "000")
           if [ "$response" = "200" ]; then
             echo "✅ Staging API is healthy!"
           else
@@ -298,23 +298,23 @@ ENVFILE
             git checkout main
             git pull origin main
             
-            # Create production .env
-            cat > .env << 'ENVFILE'
-NODE_ENV=production
-PORT=5000
-MONGODB_URI=${{ secrets.MONGODB_URI }}
-JWT_SECRET=${{ secrets.JWT_SECRET }}
-AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
-AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
-S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
-AWS_REGION=us-east-1
-CLIENT_URL=https://suporte.brsi.net.br
-VITE_API_URL=https://suporte.brsi.net.br/api
-VITE_SOCKET_URL=https://suporte.brsi.net.br
-ENVFILE
+            # Create production .env files using echo commands
+            echo "NODE_ENV=production" > backend/.env
+            echo "PORT=3002" >> backend/.env
+            echo "MONGODB_URI=${{ secrets.MONGODB_URI_PROD }}" >> backend/.env
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> backend/.env
+            echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> backend/.env
+            echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> backend/.env
+            echo "S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME_PRODUCTION }}" >> backend/.env
+            echo "AWS_REGION=us-east-1" >> backend/.env
+            echo "CLIENT_URL=https://suporte.brsi.net.br" >> backend/.env
+            
+            # Create frontend .env file
+            echo "VITE_API_URL=http://${{ secrets.EC2_HOST }}:3002/api" > frontend/.env
+            echo "VITE_SOCKET_URL=http://${{ secrets.EC2_HOST }}:3002" >> frontend/.env
             
             # Deploy with zero downtime
-            docker-compose -f docker-compose.production.yml up -d --build
+            docker-compose -f docker-production.yml up -d --build
             
             # Clean old images
             docker image prune -f
@@ -330,7 +330,7 @@ ENVFILE
           # Check if domain is configured
           if curl -s -o /dev/null -w "%{http_code}" https://suporte.brsi.net.br/health | grep -q "200"; then
             echo "✅ Production API is healthy (HTTPS)!"
-          elif curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.EC2_HOST }}:5000/health | grep -q "200"; then
+          elif curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.EC2_HOST }}:3002/health | grep -q "200"; then
             echo "⚠️ API is healthy on HTTP only. Configure SSL/HTTPS!"
           else
             echo "❌ Production API health check failed!"
@@ -374,7 +374,7 @@ ENVFILE
             cd ~/chat-atendimento
             
             # Stop current deployment
-            docker-compose -f docker-compose.production.yml down
+            docker-compose -f docker-production.yml down
             
             # Restore backup
             LATEST_BACKUP=$(ls -t ~/chat-atendimento-backup-* 2>/dev/null | head -1)
@@ -383,7 +383,7 @@ ENVFILE
               rm -rf ~/chat-atendimento
               mv "$LATEST_BACKUP" ~/chat-atendimento
               cd ~/chat-atendimento
-              docker-compose -f docker-compose.production.yml up -d
+              docker-compose -f docker-production.yml up -d
               echo "✅ Rollback completed"
             else
               echo "❌ No backup found for rollback"
