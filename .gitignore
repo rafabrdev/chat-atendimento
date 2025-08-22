@@ -9,6 +9,8 @@ node_modules/
 !.env.*.example
 .env.local
 .env.*.local
+.env.staging.server
+.env.production.server
 
 # Credentials and secrets
 *credentials*

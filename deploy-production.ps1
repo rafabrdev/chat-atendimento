@@ -1,32 +1,92 @@
-# Deploy Production Script
-Write-Host "🚀 Iniciando deploy de PRODUÇÃO..." -ForegroundColor Red
-Write-Host "⚠️  ATENÇÃO: Este é o ambiente de PRODUÇÃO!" -ForegroundColor Yellow
+# Deploy Production Script - Seguro
+# ATENÇÃO: Este é o ambiente de PRODUÇÃO!
+# Configure as variáveis de ambiente antes de executar este script
 
-# Confirmação
+Write-Host "" -ForegroundColor Red
+Write-Host "========================================" -ForegroundColor Red
+Write-Host " 🚀 DEPLOY PRODUÇÃO - AMBIENTE SEGURO" -ForegroundColor Red
+Write-Host "========================================" -ForegroundColor Red
+Write-Host "⚠️  ATENÇÃO: Este é o ambiente de PRODUÇÃO!" -ForegroundColor Yellow
+Write-Host ""
+
+# Validação de segurança
 $confirm = Read-Host "Tem certeza que deseja fazer deploy em PRODUÇÃO? (yes/no)"
 if ($confirm -ne "yes") {
     Write-Host "Deploy cancelado." -ForegroundColor Yellow
     exit
 }
 
-$SERVER_IP = "52.90.17.204"
-$SSH_KEY = "$HOME\.ssh\chat-atendimento-new-key.pem"
+# Validar variáveis de ambiente necessárias
+$requiredVars = @(
+    "MONGODB_URI_PRODUCTION",
+    "JWT_SECRET",
+    "EC2_HOST",
+    "SSH_KEY_PATH",
+    "S3_BUCKET_NAME_PRODUCTION"
+)
+
+$missingVars = @()
+foreach ($var in $requiredVars) {
+    if (-not (Get-Item Env:$var -ErrorAction SilentlyContinue)) {
+        $missingVars += $var
+    }
+}
+
+if ($missingVars.Count -gt 0) {
+    Write-Host "❌ ERRO: Variáveis de ambiente não configuradas:" -ForegroundColor Red
+    foreach ($var in $missingVars) {
+        Write-Host "   - $var" -ForegroundColor Yellow
+    }
+    Write-Host ""
+    Write-Host "Configure as variáveis usando um dos métodos:" -ForegroundColor Yellow
+    Write-Host "1. Arquivo .env.local (recomendado)" -ForegroundColor White
+    Write-Host "2. Variáveis de ambiente do sistema" -ForegroundColor White
+    Write-Host "3. Execute: .\setup-env.ps1" -ForegroundColor White
+    Write-Host ""
+    Write-Host "⚠️  IMPORTANTE: Não coloque senhas diretamente no código!" -ForegroundColor Red
+    exit 1
+}
+
+# Carregar configurações
+$SERVER_IP = $env:EC2_HOST
+if (-not $SERVER_IP) { $SERVER_IP = "52.90.17.204" }
+
+$SSH_KEY = $env:SSH_KEY_PATH
+if (-not $SSH_KEY) { $SSH_KEY = "$HOME\.ssh\chat-atendimento-new-key.pem" }
 
 # Obter credenciais AWS
-$AWS_KEY = aws configure get aws_access_key_id
-$AWS_SECRET = aws configure get aws_secret_access_key
+$AWS_KEY = $env:AWS_ACCESS_KEY_ID
+if (-not $AWS_KEY) { $AWS_KEY = aws configure get aws_access_key_id }
 
-# Criar arquivo .env para produção
+$AWS_SECRET = $env:AWS_SECRET_ACCESS_KEY
+if (-not $AWS_SECRET) { $AWS_SECRET = aws configure get aws_secret_access_key }
+
+# Confirmação final com detalhes
+Write-Host ""
+Write-Host "🔍 Configurações de Deploy:" -ForegroundColor Cyan
+Write-Host "   Servidor: $SERVER_IP" -ForegroundColor White
+Write-Host "   Ambiente: PRODUÇÃO" -ForegroundColor Red
+Write-Host "   MongoDB: [PROTEGIDO]" -ForegroundColor White
+Write-Host "   S3 Bucket: $($env:S3_BUCKET_NAME_PRODUCTION)" -ForegroundColor White
+Write-Host ""
+
+$finalConfirm = Read-Host "Confirmar deploy de PRODUÇÃO com estas configurações? (yes/no)"
+if ($finalConfirm -ne "yes") {
+    Write-Host "Deploy cancelado." -ForegroundColor Yellow
+    exit
+}
+
+# Criar arquivo .env temporário (sem senhas hardcoded)
 $envContent = @"
 NODE_ENV=production
 PORT=3002
-MONGODB_URI=mongodb+srv://chatadmin:9CG4miPXFSwJP562@chat-atendimento.7mtwmy0.mongodb.net/chat-atendimento-prod?retryWrites=true&w=majority
-JWT_SECRET=xK9@mP2$vN7#qR4&wY6*bT8!sF3^jL5
+MONGODB_URI=$($env:MONGODB_URI_PRODUCTION)
+JWT_SECRET=$($env:JWT_SECRET)
 JWT_EXPIRE=7d
 USE_S3=true
 AWS_ACCESS_KEY_ID=$AWS_KEY
 AWS_SECRET_ACCESS_KEY=$AWS_SECRET
-S3_BUCKET_NAME=chat-atendimento-production
+S3_BUCKET_NAME=$($env:S3_BUCKET_NAME_PRODUCTION)
 AWS_REGION=us-east-1
 CORS_ORIGIN=https://suporte.brsi.net.br
 CLIENT_URL=https://suporte.brsi.net.br
