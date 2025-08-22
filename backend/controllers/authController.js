@@ -13,7 +13,15 @@ const generateToken = (id) => {
 // @access  Public
 const register = async (req, res, next) => {
   try {
-    const { name, email, password, role, profile } = req.body;
+    const { name, email, password, company, role, profile } = req.body;
+
+    // Validar campos obrigatórios
+    if (!company) {
+      return res.status(400).json({
+        success: false,
+        message: 'Empresa é obrigatória'
+      });
+    }
 
     // Verificar se usuário já existe
     const existingUser = await User.findOne({ email });
@@ -29,6 +37,7 @@ const register = async (req, res, next) => {
       name,
       email,
       password,
+      company,
       role: role || 'client',
       profile: profile || {}
     });

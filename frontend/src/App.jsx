@@ -21,6 +21,11 @@ import History from './pages/History.jsx';
 import NotFound from './pages/NotFound.jsx';
 import Unauthorized from './pages/Unauthorized.jsx';
 import TestMode from './pages/TestMode.jsx';
+import AdminDashboard from './pages/AdminDashboard.jsx';
+
+// Components for Sprint 3
+import AgentManagement from './components/Agent/AgentManagement.jsx';
+import AnalyticsDashboard from './components/Analytics/AnalyticsDashboard.jsx';
 
 // Componente wrapper para inicializar socket
 function SocketWrapper({ children }) {
@@ -77,7 +82,7 @@ function App() {
                     </MainLayout>
                   </SocketWrapper>
                 </PrivateRoute>
-              } 
+              }
             />
             <Route 
               path="/history" 
@@ -86,6 +91,42 @@ function App() {
                   <SocketWrapper>
                     <MainLayout>
                       <History />
+                    </MainLayout>
+                  </SocketWrapper>
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="/agents" 
+              element={
+                <PrivateRoute roles={['agent', 'admin']}>
+                  <SocketWrapper>
+                    <MainLayout>
+                      <AgentManagement />
+                    </MainLayout>
+                  </SocketWrapper>
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="/analytics" 
+              element={
+                <PrivateRoute>
+                  <SocketWrapper>
+                    <MainLayout>
+                      <AnalyticsDashboard />
+                    </MainLayout>
+                  </SocketWrapper>
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="/admin" 
+              element={
+                <PrivateRoute roles={['admin']}>
+                  <SocketWrapper>
+                    <MainLayout>
+                      <AdminDashboard />
                     </MainLayout>
                   </SocketWrapper>
                 </PrivateRoute>

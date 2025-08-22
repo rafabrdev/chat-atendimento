@@ -6,6 +6,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const http = require('http');
 const socketIo = require('socket.io');
+const path = require('path');
 
 // Importar middleware e configurações
 const connectDB = require('./config/database');
@@ -15,6 +16,9 @@ const { generalLimiter } = require('./middleware/rateLimiter');
 // Importar rotas
 const authRoutes = require('./routes/auth');
 const chatRoutes = require('./routes/chatRoutes');
+const fileRoutes = require('./routes/files');
+const agentRoutes = require('./routes/agents');
+const historyRoutes = require('./routes/history');
 
 const app = express();
 const server = http.createServer(app);
@@ -47,6 +51,14 @@ app.use(generalLimiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Serve static files (uploads)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+  setHeaders: (res, path) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET');
+  }
+}));
+
 // Health check
 app.get('/health', (req, res) => {
   res.status(200).json({
@@ -60,6 +72,9 @@ app.get('/health', (req, res) => {
 // Rotas da API
 app.use('/api/auth', authRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/files', fileRoutes);
+app.use('/api/agents', agentRoutes);
+app.use('/api/history', historyRoutes);
 
 // Rota 404
 app.use('*', (req, res) => {

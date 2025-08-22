@@ -26,6 +26,11 @@ const userSchema = new mongoose.Schema({
     required: [true, 'Nome é obrigatório'],
     maxlength: [100, 'Nome muito longo']
   },
+  company: {
+    type: String,
+    required: [true, 'Empresa é obrigatória'],
+    trim: true
+  },
   role: {
     type: String,
     enum: ['client', 'agent', 'admin'],
@@ -42,10 +47,6 @@ const userSchema = new mongoose.Schema({
   },
   profile: {
     phone: {
-      type: String,
-      default: ''
-    },
-    company: {
       type: String,
       default: ''
     }

@@ -8,12 +8,16 @@ import {
   Info,
   Clock,
   User,
-  Bot
+  Bot,
+  File as FileIcon,
+  Image as ImageIcon
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useAuth } from '../../context/AuthContext';
 import { socketService } from '../../lib/socket';
+import FileUpload from './FileUpload';
+import toast from 'react-hot-toast';
 
 const ChatWindow = ({ 
   conversation, 
@@ -26,6 +30,7 @@ const ChatWindow = ({
   const [messageInput, setMessageInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [typingUsers, setTypingUsers] = useState(new Set());
+  const [showFileUpload, setShowFileUpload] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
@@ -100,6 +105,36 @@ const ChatWindow = ({
       setIsTyping(false);
       socketService.stopTyping(conversation._id);
     }
+  };
+
+  const handleFilesUploaded = (files) => {
+    // Enviar mensagem com arquivos anexados
+    files.forEach(file => {
+      // Criar mensagem especial para arquivos
+      const fileMessage = {
+        content: `📎 ${file.originalName}`,
+        type: file.fileType || 'file',
+        files: [{
+          _id: file._id,
+          originalName: file.originalName,
+          url: file.url,
+          fileType: file.fileType,
+          size: file.size,
+          mimetype: file.mimetype
+        }]
+      };
+      
+      // Enviar mensagem com arquivo
+      if (onSendMessage.length > 1) {
+        onSendMessage(fileMessage.content, fileMessage);
+      } else {
+        // Para compatibilidade se onSendMessage só aceita um parâmetro
+        onSendMessage(fileMessage.content);
+      }
+    });
+    
+    setShowFileUpload(false);
+    toast.success(`${files.length} arquivo(s) enviado(s) com sucesso!`);
   };
 
   const formatMessageTime = (date) => {
@@ -235,6 +270,68 @@ const ChatWindow = ({
                           ? 'bg-primary-500 text-white'
                           : 'bg-gray-100 text-gray-900'
                       }`}>
+                        {/* Renderizar arquivo se houver */}
+                        {message.files && message.files.length > 0 && (
+                          <div className="space-y-2">
+                            {message.files.map((file, idx) => {
+                              const fileUrl = file.url?.startsWith('http') 
+                                ? file.url 
+                                : `${window.location.origin}${file.url}`;
+                              
+                              if (file.fileType === 'image' || file.mimetype?.startsWith('image/')) {
+                                return (
+                                  <div key={idx} className="block">
+                                    <img 
+                                      src={fileUrl} 
+                                      alt={file.originalName || 'Imagem'}
+                                      className="max-w-full rounded cursor-pointer hover:opacity-90 mb-2"
+                                      style={{ maxHeight: '300px' }}
+                                      onClick={() => window.open(fileUrl, '_blank')}
+                                      onError={(e) => {
+                                        e.target.style.display = 'none';
+                                        e.target.nextSibling.style.display = 'flex';
+                                      }}
+                                    />
+                                    <div 
+                                      className="hidden items-center space-x-2 p-2 bg-white/10 rounded"
+                                      onClick={() => window.open(fileUrl, '_blank')}
+                                    >
+                                      <ImageIcon className="w-5 h-5" />
+                                      <span className="text-sm">{file.originalName || 'Imagem'}</span>
+                                    </div>
+                                  </div>
+                                );
+                              } else {
+                                return (
+                                  <a
+                                    key={idx}
+                                    href={fileUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={`flex items-center space-x-2 p-2 rounded transition-colors ${
+                                      isOwnMessage 
+                                        ? 'bg-white/20 hover:bg-white/30' 
+                                        : 'bg-gray-200 hover:bg-gray-300'
+                                    }`}
+                                  >
+                                    <FileIcon className="w-5 h-5 flex-shrink-0" />
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-sm font-medium truncate">
+                                        {file.originalName || 'Arquivo'}
+                                      </p>
+                                      {file.size && (
+                                        <p className="text-xs opacity-75">
+                                          {(file.size / 1024).toFixed(1)} KB
+                                        </p>
+                                      )}
+                                    </div>
+                                    <span className="text-xs opacity-75">Baixar</span>
+                                  </a>
+                                );
+                              }
+                            })}
+                          </div>
+                        )}
                         <p className="break-words">{message.content}</p>
                       </div>
                       
@@ -268,12 +365,35 @@ const ChatWindow = ({
         )}
       </div>
 
+      {/* Modal de Upload de Arquivos */}
+      {showFileUpload && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Enviar Arquivos</h3>
+              <button
+                onClick={() => setShowFileUpload(false)}
+                className="p-1 hover:bg-gray-100 rounded"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <FileUpload
+              conversationId={conversation._id}
+              onFilesUploaded={handleFilesUploaded}
+              maxFiles={5}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Input de mensagem */}
       {conversation.status !== 'closed' ? (
         <form onSubmit={handleSendMessage} className="px-6 py-4 border-t border-gray-200">
           <div className="flex items-center space-x-2">
             <button
               type="button"
+              onClick={() => setShowFileUpload(true)}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               title="Anexar arquivo"
             >

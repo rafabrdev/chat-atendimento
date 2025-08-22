@@ -99,22 +99,40 @@ const ModernConversationList = ({
     const hasUnread = conversation.unreadCount > 0;
     const isClient = user?.role === 'client';
     
-    // Determinar o nome a ser exibido
+    // Determinar o nome e role a ser exibido
     let displayName = '';
+    let displayRole = '';
+    let roleColor = '';
+    
     if (isClient) {
-      // Para clientes, mostrar o nome do agente ou status
-      if (conversation.assignedAgent?.name) {
-        displayName = conversation.assignedAgent.name;
+      // Para clientes, mostrar o nome do agente
+      if (conversation.assignedAgent) {
+        const agentName = conversation.assignedAgent.name || 'Agente';
+        const agentCompany = conversation.assignedAgent.company || conversation.assignedAgent.profile?.company || '';
+        displayName = agentCompany ? `${agentName} (${agentCompany})` : agentName;
+        displayRole = conversation.assignedAgent.role === 'admin' ? 'Admin' : 'Suporte';
+        roleColor = conversation.assignedAgent.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700';
       } else if (conversation.status === 'waiting') {
         displayName = 'Aguardando Atendimento';
+        displayRole = 'Fila';
+        roleColor = 'bg-yellow-100 text-yellow-700';
       } else if (conversation.status === 'closed') {
         displayName = 'Conversa Encerrada';
+        displayRole = 'Fechado';
+        roleColor = 'bg-gray-100 text-gray-600';
       } else {
         displayName = 'Suporte';
+        displayRole = 'Suporte';
+        roleColor = 'bg-blue-100 text-blue-700';
       }
     } else {
-      // Para agentes, mostrar o nome do cliente
-      displayName = conversation.client?.name || 'Cliente';
+      // Para agentes/admins, mostrar o primeiro nome do cliente com empresa
+      const fullName = conversation.client?.name || 'Cliente';
+      const firstName = fullName.split(' ')[0]; // Pegar apenas o primeiro nome
+      const clientCompany = conversation.client?.company || conversation.client?.profile?.company || '';
+      displayName = clientCompany ? `${firstName} (${clientCompany})` : firstName;
+      displayRole = 'Cliente';
+      roleColor = 'bg-green-100 text-green-700';
     }
     
     return (
@@ -141,11 +159,18 @@ const ModernConversationList = ({
         {/* Content */}
         <div className="flex-1 text-left min-w-0">
           <div className="flex items-center justify-between mb-1">
-            <h4 className={`font-medium truncate ${
-              isSelected ? 'text-primary-700' : 'text-gray-900'
-            }`}>
-              {displayName}
-            </h4>
+            <div className="flex items-center gap-2 min-w-0">
+              <h4 className={`font-medium truncate ${
+                isSelected ? 'text-primary-700' : 'text-gray-900'
+              }`}>
+                {displayName}
+              </h4>
+              {displayRole && (
+                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${roleColor}`}>
+                  {displayRole}
+                </span>
+              )}
+            </div>
             <span className={`text-xs flex-shrink-0 ml-2 ${
               hasUnread ? 'text-primary-600 font-semibold' : 'text-gray-400'
             }`}>
@@ -208,7 +233,7 @@ const ModernConversationList = ({
   };
 
   return (
-    <div className={`w-80 bg-white border-r border-gray-200 flex flex-col h-full ${
+    <div className={`w-80 bg-white border-r border-gray-200 flex flex-col ${
       isOpen ? 'block' : 'hidden lg:block'
     }`}>
       {/* Header */}
@@ -218,13 +243,16 @@ const ModernConversationList = ({
             <Sparkles className="w-5 h-5 text-primary-600" />
             <h2 className="text-lg font-semibold text-gray-900">Conversas</h2>
           </div>
-          <button
-            onClick={onCreateConversation}
-            className="p-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-            title="Nova conversa"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
+          {/* Mostrar botão + apenas para agentes/admins. Clientes iniciam conversa ao enviar a primeira mensagem. */}
+          {user?.role !== 'client' && onCreateConversation && (
+            <button
+              onClick={onCreateConversation}
+              className="p-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+              title="Nova conversa"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         {/* Busca */}
@@ -285,12 +313,19 @@ const ModernConversationList = ({
           <div className="text-center py-12">
             <MessageCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
             <p className="text-gray-500 text-sm">Nenhuma conversa encontrada</p>
-            <button
-              onClick={onCreateConversation}
-              className="mt-4 text-primary-600 hover:text-primary-700 text-sm font-medium"
-            >
-              Iniciar nova conversa
-            </button>
+            {/* Clientes não podem abrir conversa vazia; instruir a iniciar pelo campo de mensagem. */}
+            {user?.role !== 'client' && onCreateConversation ? (
+              <button
+                onClick={onCreateConversation}
+                className="mt-4 text-primary-600 hover:text-primary-700 text-sm font-medium"
+              >
+                Iniciar nova conversa
+              </button>
+            ) : (
+              <p className="mt-4 text-xs text-gray-500">
+                Para iniciar um atendimento, digite sua primeira mensagem no painel ao lado.
+              </p>
+            )}
           </div>
         ) : (
           <>

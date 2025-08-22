@@ -17,7 +17,7 @@ const messageSchema = new mongoose.Schema({
   },
   senderType: {
     type: String,
-    enum: ['agent', 'client', 'system'],
+    enum: ['client', 'agent', 'admin'],
     required: true
   },
   content: {
@@ -26,7 +26,7 @@ const messageSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['text', 'image', 'file', 'audio', 'system'],
+    enum: ['text', 'image', 'file', 'audio', 'video', 'document', 'system'],
     default: 'text'
   },
   attachments: [{
@@ -34,6 +34,10 @@ const messageSchema = new mongoose.Schema({
     type: String,
     name: String,
     size: Number
+  }],
+  files: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'File'
   }],
   metadata: {
     type: mongoose.Schema.Types.Mixed,

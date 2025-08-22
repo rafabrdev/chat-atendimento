@@ -8,12 +8,17 @@ import {
   User,
   Bot,
   ArrowDown,
-  RefreshCw
+  RefreshCw,
+  Paperclip,
+  File as FileIcon,
+  Image as ImageIcon
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useAuth } from '../../context/AuthContext';
 import { socketService } from '../../lib/socket';
+import FileUpload from './FileUpload';
+import toast from 'react-hot-toast';
 
 const ModernChatWindow = ({ 
   conversation, 
@@ -32,6 +37,7 @@ const ModernChatWindow = ({
   const [messageInput, setMessageInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [showFileUpload, setShowFileUpload] = useState(false);
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const inputRef = useRef(null);
@@ -105,6 +111,31 @@ const ModernChatWindow = ({
       e.preventDefault();
       handleSendMessage(e);
     }
+  };
+
+  const handleFilesUploaded = (files) => {
+    // Enviar mensagem com arquivos anexados
+    files.forEach(file => {
+      // Criar mensagem especial para arquivos 
+      const fileMessage = {
+        content: `📎 ${file.originalName}`,
+        type: file.fileType || 'file',
+        files: [{
+          _id: file._id,
+          originalName: file.originalName,
+          url: file.url,
+          fileType: file.fileType,
+          size: file.size,
+          mimetype: file.mimetype
+        }]
+      };
+      
+      // Sempre enviar com os dados do arquivo
+      onSendMessage(fileMessage.content, fileMessage);
+    });
+    
+    setShowFileUpload(false);
+    toast.success(`${files.length} arquivo(s) enviado(s) com sucesso!`);
   };
 
   const formatMessageTime = (date) => {
@@ -303,24 +334,49 @@ const ModernChatWindow = ({
           <div>
             <h3 className="font-medium text-gray-900 text-sm">
               {/* Mostrar nome correto baseado no papel do usuário */}
-              {user?.role === 'client' || user?.role === undefined
-                ? (conversation.assignedAgent?.name || 'Aguardando atendente')
-                : (conversation.client?.name || 'Cliente')}
+              {(() => {
+                if (user?.role === 'client' || user?.role === undefined) {
+                  // Cliente vendo o agente
+                  if (conversation.assignedAgent) {
+                    const agentName = conversation.assignedAgent.name || 'Agente';
+                    const agentCompany = conversation.assignedAgent.company || '';
+                    return agentCompany ? `${agentName} (${agentCompany})` : agentName;
+                  }
+                  return 'Aguardando atendente';
+                } else {
+                  // Agente/Admin vendo o cliente
+                  const clientName = conversation.client?.name || 'Cliente';
+                  const clientCompany = conversation.client?.company || '';
+                  return clientCompany ? `${clientName} (${clientCompany})` : clientName;
+                }
+              })()}
             </h3>
             <div className="flex items-center gap-2 text-xs text-gray-500">
-              <span>
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-medium ${
+                conversation.status === 'active' ? 'bg-green-100 text-green-700' :
+                conversation.status === 'waiting' ? 'bg-yellow-100 text-yellow-700' :
+                'bg-gray-100 text-gray-600'
+              }`}>
                 {conversation.status === 'active' ? '🟢 Ativo' : 
                  conversation.status === 'waiting' ? '⏳ Aguardando' : 
                  '⚫ Encerrado'}
               </span>
+              {/* Tag de role */}
               {conversation.status === 'active' && conversation.assignedAgent && (
                 <>
-                  <span>•</span>
-                  <span>
-                    {user?.role === 'client' 
-                      ? `Atendente: ${conversation.assignedAgent.name}`
-                      : `Cliente: ${conversation.client?.name || 'Anônimo'}`}
-                  </span>
+                  {user?.role === 'client' ? (
+                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
+                      conversation.assignedAgent.role === 'admin' 
+                        ? 'bg-purple-100 text-purple-700' 
+                        : 'bg-blue-100 text-blue-700'
+                    }`}>
+                      {conversation.assignedAgent.role === 'admin' ? 'Admin' : 'Suporte'}
+                    </span>
+                  ) : (
+                    <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                      Cliente
+                    </span>
+                  )}
                 </>
               )}
             </div>
@@ -425,6 +481,74 @@ const ModernChatWindow = ({
                             ? 'bg-primary-600 text-white'
                             : 'bg-white border border-gray-200 text-gray-900 shadow-sm'
                         }`}>
+                          {/* Renderizar arquivo se houver (files ou attachments) */}
+                          {((message.files && message.files.length > 0) || (message.attachments && message.attachments.length > 0)) && (
+                            <div className="space-y-2 mb-2">
+                              {(message.files || message.attachments || []).map((file, idx) => {
+                                // Compatibilidade com diferentes estruturas de arquivo
+                                const fileName = file.originalName || file.name || 'Arquivo';
+                                const fileType = file.fileType || file.type || 'file';
+                                const fileMimetype = file.mimetype || file.type;
+                                // Construir URL completa para o arquivo
+                                const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
+                                const fileUrl = file.url?.startsWith('http') 
+                                  ? file.url 
+                                  : `${baseUrl}${file.url}`;
+                                
+                                if (fileType === 'image' || fileMimetype?.startsWith('image/')) {
+                                  return (
+                                    <div key={idx} className="block">
+                                      <img 
+                                        src={fileUrl} 
+                                        alt={fileName}
+                                        className="max-w-full rounded cursor-pointer hover:opacity-90"
+                                        style={{ maxHeight: '300px' }}
+                                        onClick={() => window.open(fileUrl, '_blank')}
+                                        onError={(e) => {
+                                          e.target.style.display = 'none';
+                                          e.target.nextSibling.style.display = 'flex';
+                                        }}
+                                      />
+                                      <div 
+                                        className="hidden items-center space-x-2 p-2 bg-white/10 rounded"
+                                        onClick={() => window.open(fileUrl, '_blank')}
+                                      >
+                                        <ImageIcon className="w-5 h-5" />
+                                        <span className="text-sm">{fileName}</span>
+                                      </div>
+                                    </div>
+                                  );
+                                } else {
+                                  return (
+                                    <a
+                                      key={idx}
+                                      href={fileUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className={`flex items-center space-x-2 p-2 rounded transition-colors ${
+                                        isOwnMessage 
+                                          ? 'bg-white/20 hover:bg-white/30' 
+                                          : 'bg-gray-100 hover:bg-gray-200'
+                                      }`}
+                                    >
+                                      <FileIcon className="w-5 h-5 flex-shrink-0" />
+                                      <div className="min-w-0 flex-1">
+                                        <p className="text-sm font-medium truncate">
+                                          {fileName}
+                                        </p>
+                                        {file.size && (
+                                          <p className="text-xs opacity-75">
+                                            {(file.size / 1024).toFixed(1)} KB
+                                          </p>
+                                        )}
+                                      </div>
+                                      <span className="text-xs opacity-75">Baixar</span>
+                                    </a>
+                                  );
+                                }
+                              })}
+                            </div>
+                          )}
                           <p className="whitespace-pre-wrap break-words">{message.content}</p>
                         </div>
                         
@@ -455,11 +579,42 @@ const ModernChatWindow = ({
         )}
       </div>
 
+      {/* Modal de Upload de Arquivos */}
+      {showFileUpload && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Enviar Arquivos</h3>
+              <button
+                onClick={() => setShowFileUpload(false)}
+                className="p-1 hover:bg-gray-100 rounded"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <FileUpload
+              conversationId={conversation._id}
+              onFilesUploaded={handleFilesUploaded}
+              maxFiles={5}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Input de mensagem */}
       {conversation.status !== 'closed' ? (
         <div className="border-t border-gray-200 bg-white p-4">
           <form onSubmit={handleSendMessage} className="max-w-4xl mx-auto">
             <div className="relative flex items-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowFileUpload(true)}
+                className="p-2.5 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Anexar arquivo"
+              >
+                <Paperclip className="w-5 h-5 text-gray-600" />
+              </button>
+              
               <div className="flex-1 relative">
                 <textarea
                   ref={inputRef}

@@ -1,245 +1,280 @@
-# Sistema de Atendimento via Live Chat
+# 💬 Chat Atendimento - Sistema de Atendimento em Tempo Real
 
-Sistema completo de atendimento ao cliente via chat em tempo real, desenvolvido em React.js e Node.js.
+## 🚀 Sobre o Projeto
 
-## 🚀 Tecnologias
+Sistema completo de chat para atendimento ao cliente com múltiplos atendentes, fila de espera, dashboard administrativo e comunicação em tempo real via WebSockets.
 
-- **Frontend**: React.js (Vite), Tailwind CSS, Socket.io-client
-- **Backend**: Node.js, Express, MongoDB, Socket.io
-- **Autenticação**: JWT
-- **Real-time**: WebSockets
+### ✨ Principais Funcionalidades
 
-## 📋 Pré-requisitos
+- 💬 **Chat em tempo real** com WebSockets (Socket.io)
+- 👥 **Múltiplos atendentes** simultâneos
+- 📊 **Dashboard** com estatísticas e métricas
+- 🔐 **Autenticação segura** com JWT
+- 📱 **Interface responsiva** para desktop e mobile
+- 🔄 **Fila de atendimento** inteligente
+- 📎 **Envio de arquivos** com armazenamento na AWS S3
+- 🔔 **Notificações** em tempo real
+- 🎨 **Temas personalizáveis** (claro/escuro)
 
-- Node.js (v16 ou superior)
-- MongoDB (local ou cloud)
-- NPM ou Yarn
+## 🛠️ Tecnologias Utilizadas
 
-## ⚡ Instalação Rápida
+### Backend
+- **Node.js** (v20+) com Express
+- **MongoDB** com Mongoose ODM
+- **Socket.io** para WebSockets
+- **JWT** para autenticação
+- **AWS S3** para armazenamento de arquivos
+- **Docker** para containerização
 
-### Windows (PowerShell)
+### Frontend
+- **React 18** com Vite
+- **TailwindCSS** para estilização
+- **Socket.io Client** para comunicação real-time
+- **React Router v6** para roteamento
+- **Zustand** para gerenciamento de estado
+- **React Query** para cache e sincronização
 
-1. Clone o repositório
+## 📦 Estrutura do Projeto
+
+```
+chat-atendimento/
+├── backend/              # Servidor Node.js
+│   ├── config/          # Configurações (DB, AWS, etc)
+│   ├── controllers/     # Lógica de negócio
+│   ├── middlewares/     # Middlewares Express
+│   ├── models/          # Schemas MongoDB
+│   ├── routes/          # Rotas da API REST
+│   ├── services/        # Serviços (email, upload, etc)
+│   ├── sockets/         # Handlers Socket.io
+│   └── server.js        # Entry point
+│
+├── frontend/            # Aplicação React
+│   ├── src/
+│   │   ├── components/  # Componentes reutilizáveis
+│   │   ├── pages/       # Páginas/Rotas
+│   │   ├── hooks/       # Custom hooks
+│   │   ├── services/    # Chamadas API
+│   │   ├── stores/      # Estado global (Zustand)
+│   │   └── utils/       # Utilitários
+│   └── public/          # Assets estáticos
+│
+├── docker-compose.yml   # Orquestração de containers
+├── .github/workflows/   # CI/CD com GitHub Actions
+└── README.md           # Este arquivo
+```
+
+## 🚀 Como Executar
+
+### Pré-requisitos
+
+- Node.js 20+ e npm/yarn
+- Docker e Docker Compose (opcional)
+- MongoDB (local ou Atlas)
+- Conta AWS (para produção)
+
+### 🏃 Execução Local
+
+1. **Clone o repositório**
 ```bash
-git clone <url-do-repositorio>
+git clone https://github.com/rafabrdev/chat-atendimento.git
 cd chat-atendimento
 ```
 
-2. Execute o script de setup
-```powershell
-.\scripts\setup.ps1
-```
-
-### Instalação Manual
-
-1. Clone o repositório
+2. **Configure as variáveis de ambiente**
 ```bash
-git clone <url-do-repositorio>
-cd chat-atendimento
+# Crie um arquivo .env na raiz
+cp .env.example .env
+# Edite com suas configurações
 ```
 
-2. Instale as dependências do projeto raiz
+3. **Com Docker (Recomendado)**
 ```bash
-npm install
+# Inicia todos os serviços
+docker-compose up -d
+
+# Acompanhar logs
+docker-compose logs -f
 ```
 
-3. Instale as dependências do backend
-```bash
-cd backend
-npm install
-cd ..
-```
-
-4. Instale as dependências do frontend
-```bash
-cd frontend
-npm install
-cd ..
-```
-
-5. Configure as variáveis de ambiente:
-   - Copie os exemplos abaixo para os respectivos arquivos
-
-### Backend `.env` (backend/.env)
-```env
-PORT=5000
-NODE_ENV=development
-MONGODB_URI=mongodb://localhost:27017/chat-atendimento
-JWT_SECRET=seu_jwt_secret_super_seguro_aqui_mude_em_producao
-JWT_EXPIRE=7d
-CLIENT_URL=http://localhost:5173
-RATE_LIMIT_WINDOW_MS=900000
-RATE_LIMIT_MAX_REQUESTS=100
-```
-
-### Frontend `.env` (frontend/.env)
-```env
-VITE_API_URL=http://localhost:5000/api
-VITE_SOCKET_URL=http://localhost:5000
-```
-
-## 🏃 Executando o Projeto
-
-### Desenvolvimento (Backend + Frontend)
-```bash
-npm run dev
-```
-
-### Executar separadamente
+4. **Sem Docker**
 ```bash
 # Terminal 1 - Backend
 cd backend
+npm install
 npm run dev
 
 # Terminal 2 - Frontend
 cd frontend
+npm install
 npm run dev
 ```
 
-## 📁 Estrutura do Projeto
-
-```
-chat-atendimento/
-├── backend/
-│   ├── config/
-│   │   └── database.js
-│   ├── controllers/
-│   │   └── authController.js
-│   ├── middleware/
-│   │   ├── auth.js
-│   │   ├── errorHandler.js
-│   │   └── rateLimiter.js
-│   ├── models/
-│   │   ├── User.js
-│   │   └── Conversation.js
-│   ├── routes/
-│   │   └── auth.js
-│   └── server.js
-├── frontend/
-│   ├── public/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── Layout/
-│   │   │   │   ├── MainLayout.js
-│   │   │   │   └── Sidebar.js
-│   │   │   ├── PrivateRoute.js
-│   │   │   └── PublicRoute.js
-│   │   ├── context/
-│   │   │   └── AuthContext.js
-│   │   ├── pages/
-│   │   │   ├── Dashboard.js
-│   │   │   ├── Conversations.js
-│   │   │   ├── History.js
-│   │   │   ├── Login.js
-│   │   │   ├── Register.js
-│   │   │   ├── NotFound.js
-│   │   │   └── Unauthorized.js
-│   │   ├── config/
-│   │   │   └── api.js
-│   │   ├── App.jsx
-│   │   └── main.jsx
-│   └── package.json
-├── scripts/
-│   └── setup.ps1
-└── package.json
-```
-
-## 🔐 Usuários de Teste
-
-Após executar o projeto, você pode criar usuários com diferentes roles:
-- **Cliente**: Para fazer atendimentos
-- **Agente**: Para atender clientes  
-- **Admin**: Para gerenciar o sistema
-
-## 🌐 URLs de Acesso
-
+5. **Acesse a aplicação**
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:5000
-- Health Check: http://localhost:5000/health
+- Socket.io: http://localhost:5000
 
-## 📊 Project Status
+## ⚙️ Configuração
 
-### ✅ Sprint 1 - Foundation (Completed)
-- Complete authentication system (login/register)
-- Responsive layout with sidebar
-- Basic dashboard structure
-- Protected routes system
-- Context API for state management
-- Complete environment setup
-- Error pages (404, Unauthorized)
-- Toast notification system
-- Security middleware
+### Variáveis de Ambiente (.env)
 
-### ✅ Sprint 2 - Core Features (Completed)
-- Real-time chat system with Socket.io
-- Modern conversation interface
-- Agent assignment system
-- Real-time message synchronization
-- Conversation status management (waiting, active, closed)
-- Functional dashboard with real data
-- Client and agent differentiated views
-- Recent activities tracking
-- Real-time statistics
-- Improved UI/UX with modern design
+```env
+# Servidor
+NODE_ENV=development
+PORT=5000
 
-### 🚧 Sprint 3 - Advanced Features (In Planning)
-- File and media upload
-- Advanced agent management
-- Detailed conversation history
-- Reports and analytics
-- Performance optimizations
-- Advanced filtering and search
+# MongoDB
+MONGODB_URI=mongodb://localhost:27017/chat-atendimento
 
-## 🔄 Development Roadmap
+# Autenticação
+JWT_SECRET=sua-chave-secreta-aqui
+JWT_EXPIRE=7d
 
-- **Sprint 3**: File uploads and advanced features
-- **Sprint 4**: Analytics and reporting
-- **Sprint 5**: Admin panel and management tools
-- **Sprint 6**: Deployment and production optimizations
+# Frontend URLs
+CLIENT_URL=http://localhost:5173
+VITE_API_URL=http://localhost:5000/api
+VITE_SOCKET_URL=http://localhost:5000
 
-## 🐛 Problemas Comuns
-
-### MongoDB não conecta
-```bash
-# Windows - Iniciar MongoDB
-net start MongoDB
-
-# Linux/Mac
-sudo systemctl start mongod
+# AWS S3 (opcional)
+AWS_ACCESS_KEY_ID=sua-chave
+AWS_SECRET_ACCESS_KEY=seu-secret
+S3_BUCKET_NAME=seu-bucket
+AWS_REGION=us-east-1
 ```
 
-### Erro de CORS
-Verifique se a URL do frontend está correta no arquivo `.env` do backend (CLIENT_URL).
+## 📱 Como Usar
 
-### Porta já em uso
-```powershell
-# Windows - Encontrar processo na porta
-netstat -ano | findstr :5000
+### 👤 Para Clientes
+1. Acesse a página inicial
+2. Clique em "Iniciar Conversa"
+3. Informe nome e email
+4. Aguarde conexão com atendente
+5. Converse em tempo real
 
-# Matar processo
-taskkill /PID <PID> /F
+### 🧑‍💼 Para Atendentes
+1. Faça login em `/login`
+2. Visualize a fila de espera
+3. Aceite chats pendentes
+4. Atenda múltiplos clientes
+5. Encerre conversas quando finalizar
+
+### 👨‍💼 Para Administradores
+1. Acesse `/admin`
+2. Gerencie usuários atendentes
+3. Visualize métricas e relatórios
+4. Configure parâmetros do sistema
+
+## 🌐 Deploy em Produção
+
+### AWS EC2 + GitHub Actions
+
+O projeto está configurado para deploy automático:
+
+1. **Configure os GitHub Secrets necessários**
+2. **Faça push para branch `main`**
+3. **Deploy automático será executado**
+
+### Acesso Produção
+- URL: http://52.90.17.204 (temporário)
+- Futuro: https://suporte.brsi.net.br
+
+## 📡 API Documentation
+
+### Endpoints Principais
+
+#### Autenticação
+```http
+POST   /api/auth/register   # Cadastro de atendente
+POST   /api/auth/login      # Login
+GET    /api/auth/me         # Usuário atual
+POST   /api/auth/logout     # Logout
 ```
 
-## 🧪 Testando a API
-
-### Registrar usuário
-```bash
-curl -X POST http://localhost:5000/api/auth/register -H "Content-Type: application/json" -d "{\"name\":\"Teste\",\"email\":\"teste@email.com\",\"password\":\"123456\",\"role\":\"client\"}"
+#### Chat
+```http
+POST   /api/chat/start      # Cliente inicia chat
+GET    /api/chat/queue      # Fila de atendimento
+POST   /api/chat/:id/accept # Atendente aceita chat
+POST   /api/chat/:id/close  # Encerrar chat
+GET    /api/chat/history    # Histórico de chats
 ```
 
-### Login
+#### Mensagens
+```http
+GET    /api/messages/:chatId  # Buscar mensagens
+POST   /api/messages           # Enviar mensagem
+POST   /api/messages/upload    # Upload de arquivo
+```
+
+### WebSocket Events
+
+```javascript
+// Cliente → Servidor
+socket.emit('join-chat', { chatId })
+socket.emit('send-message', { message, chatId })
+socket.emit('typing', { chatId, isTyping })
+
+// Servidor → Cliente
+socket.on('new-message', (data) => {})
+socket.on('chat-accepted', (data) => {})
+socket.on('chat-closed', (data) => {})
+socket.on('user-typing', (data) => {})
+```
+
+## 🧪 Testes
+
 ```bash
-curl -X POST http://localhost:5000/api/auth/login -H "Content-Type: application/json" -d "{\"email\":\"teste@email.com\",\"password\":\"123456\"}"
+# Backend
+cd backend
+npm test
+
+# Frontend
+cd frontend
+npm test
 ```
 
 ## 🤝 Contribuindo
 
+Contribuições são bem-vindas! Por favor:
+
 1. Fork o projeto
-2. Crie uma branch para sua feature (`git checkout -b feature/AmazingFeature`)
-3. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
-4. Push para a branch (`git push origin feature/AmazingFeature`)
+2. Crie uma feature branch (`git checkout -b feature/NovaFuncionalidade`)
+3. Commit suas mudanças (`git commit -m 'Add: Nova funcionalidade'`)
+4. Push para a branch (`git push origin feature/NovaFuncionalidade`)
 5. Abra um Pull Request
 
-## 📝 License
+## 📝 Roadmap
 
-Este projeto está sob a licença MIT.
+- [ ] Integração com WhatsApp Business API
+- [ ] Sistema de tickets/chamados
+- [ ] Chatbot com IA para respostas automáticas
+- [ ] Videochamadas integradas
+- [ ] App mobile nativo
+- [ ] Integração com CRM
+- [ ] Analytics avançado
+
+## 🐛 Encontrou um Bug?
+
+Abra uma [issue](https://github.com/pedbarros/chat-atendimento/issues) descrevendo o problema.
+
+## 📄 Licença
+
+Este projeto está sob a licença MIT. Veja [LICENSE](LICENSE) para mais detalhes.
+
+## 👨‍💻 Autor
+
+**rafael França**
+- GitHub: [@rafabrdev](https://github.com/rafabrdev)
+- LinkedIn: [Rafael França](https://linkedin.com/in/rafabrdev)
+
+## 🏢 Empresa
+
+**BR Sistemas**
+- Website: https://www.brsi.com.br/
+- Email: suporte@brsi.net.br
+
+---
+
+<p align="center">
+  Feito com ❤️ por <strong>BR Sistemas</strong>
+</p>

@@ -49,6 +49,10 @@ const Register = () => {
       newErrors.email = 'Email inválido';
     }
 
+    if (!formData.company.trim()) {
+      newErrors.company = 'Empresa é obrigatória';
+    }
+
     if (!formData.password) {
       newErrors.password = 'Senha é obrigatória';
     } else if (formData.password.length < 6) {
@@ -72,10 +76,10 @@ const Register = () => {
       name: formData.name,
       email: formData.email,
       password: formData.password,
+      company: formData.company,
       role: formData.role,
       profile: {
-        phone: formData.phone,
-        company: formData.company
+        phone: formData.phone
       }
     };
 
@@ -186,10 +190,10 @@ const Register = () => {
               />
             </div>
 
-            {/* Company (optional) */}
+            {/* Company (required) */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Empresa (opcional)
+                Empresa <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <input
@@ -197,11 +201,18 @@ const Register = () => {
                   name="company"
                   value={formData.company}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors"
+                  className={`w-full px-4 py-3 pl-10 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors ${
+                    errors.company 
+                      ? 'border-red-300 bg-red-50' 
+                      : 'border-gray-300 bg-white'
+                  }`}
                   placeholder="Nome da empresa"
                 />
                 <Building className="w-5 h-5 text-gray-400 absolute left-3 top-3.5" />
               </div>
+              {errors.company && (
+                <p className="text-red-600 text-sm mt-1">{errors.company}</p>
+              )}
             </div>
 
             {/* Password */}

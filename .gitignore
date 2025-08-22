@@ -9,6 +9,9 @@ node_modules/
 .env.test.local
 .env.production.local
 
+# Arquivo de credenciais privadas
+CREDENTIALS_PRIVATE.md
+
 # Logs
 *.log
 npm-debug.log*
@@ -53,6 +56,31 @@ frontend/src/output.css
 # Documentation drafts
 sprint*.md
 *-guide.md
+
+# AWS Sensitive Files
+*.pem
+aws-resources.txt
+*-credentials.json
+cors-config.json
+bucket-policy.json
+aws-credentials.txt
+bucket-name.txt
+new-instance-id.txt
+new-instance-ip.txt
+sg-id.txt
+vscode-ssh-config
+chat-key.pem
+
+# Documentação antiga (manter apenas AWS_CONFIG_MASTER.md)
+AWS_DEPLOYMENT_GUIDE.md
+AWS_SETUP_COMPLETE.md
+DEPLOYMENT_GUIDE.md
+SETUP_RESUMO.md
+AWS_IMPLEMENTATION_GUIDE.md
+AWS_SETUP_STEP_BY_STEP.md
+
+# PDF files
+*.pdf
 
 # Misc files
 frontend/--force

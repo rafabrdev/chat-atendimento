@@ -30,9 +30,16 @@ class SocketService {
       },
       transports: ['websocket', 'polling'], // Adicionar polling como fallback
       reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-      forceNew: true // Forçar nova conexão
+      reconnectionAttempts: 10,
+      reconnectionDelay: 500, // Reduzir delay de reconexão para 500ms
+      reconnectionDelayMax: 2000, // Máximo de 2 segundos
+      timeout: 5000, // Timeout de 5 segundos
+      forceNew: true, // Forçar nova conexão
+      // Otimizações para real-time
+      upgrade: true, // Permitir upgrade de polling para websocket
+      rememberUpgrade: true, // Lembrar upgrade
+      pingInterval: 10000, // Ping a cada 10 segundos
+      pingTimeout: 5000 // Timeout de ping em 5 segundos
     });
 
     this.socket.on('connect', () => {
@@ -115,8 +122,21 @@ class SocketService {
     this.emit('leave-conversation', { conversationId });
   }
 
-  sendMessage(conversationId, content, type = 'text') {
-    console.log('📤 Sending message via socket:', { conversationId, content, type });
+  sendMessage(conversationId, content, type = 'text', files = null) {
+    console.log('📤 Sending message via socket:', { 
+      conversationId, 
+      content, 
+      type,
+      files: files?.length || 0 
+    });
+    
+    // Debug detalhado dos arquivos
+    if (files && files.length > 0) {
+      console.log('📎 Files being sent:', JSON.stringify(files, null, 2));
+    } else {
+      console.log('⚠️ No files to send');
+    }
+    
     console.log('Socket connected:', this.socket?.connected);
     console.log('Socket ID:', this.socket?.id);
     
@@ -125,7 +145,18 @@ class SocketService {
       return false;
     }
     
-    this.emit('send-message', { conversationId, content, type });
+    // Preparar dados da mensagem
+    const messageData = { conversationId, content, type };
+    
+    // Adicionar arquivos se houver
+    if (files && files.length > 0) {
+      messageData.files = files;
+      console.log('✅ Files added to messageData');
+    }
+    
+    console.log('📨 Final messageData being sent:', JSON.stringify(messageData, null, 2));
+    
+    this.emit('send-message', messageData);
     return true;
   }
 
@@ -149,12 +180,12 @@ class SocketService {
   startHeartbeat() {
     this.stopHeartbeat(); // Limpar intervalo anterior
     
-    // Enviar ping a cada 30 segundos
+    // Enviar ping a cada 15 segundos para manter conexão ativa
     this.pingInterval = setInterval(() => {
       if (this.socket?.connected) {
         this.emit('ping', { timestamp: Date.now() });
       }
-    }, 30000);
+    }, 15000);
   }
   
   stopHeartbeat() {
@@ -168,16 +199,17 @@ class SocketService {
   startAutoSync() {
     this.stopAutoSync(); // Limpar intervalo anterior
     
-    // Verificar a cada 60 segundos se precisa sincronização
+    // Verificar a cada 30 segundos se precisa sincronização (mais frequente)
     this.syncInterval = setInterval(() => {
       const timeSinceLastActivity = Date.now() - this.lastActivity;
       
-      // Se não houver atividade por mais de 2 minutos, solicitar sync
-      if (timeSinceLastActivity > 120000 && this.socket?.connected) {
+      // Se não houver atividade por mais de 1 minuto, solicitar sync
+      if (timeSinceLastActivity > 60000 && this.socket?.connected) {
         console.log('🔄 Requesting sync due to inactivity');
         this.emit('request-sync');
+        this.lastActivity = Date.now(); // Reset activity
       }
-    }, 60000);
+    }, 30000);
   }
   
   stopAutoSync() {
