@@ -5,7 +5,12 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js",
+    "dev": "cross-env NODE_ENV=development nodemon server.js",
+    "staging": "cross-env NODE_ENV=staging node server.js",
+    "prod": "cross-env NODE_ENV=production node server.js",
+    "dev:env": "node -r dotenv/config server.js dotenv_config_path=.env.development",
+    "staging:env": "node -r dotenv/config server.js dotenv_config_path=.env.staging",
+    "prod:env": "node -r dotenv/config server.js dotenv_config_path=.env.production",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write ."
@@ -15,6 +20,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.873.0",
     "@nestjs/platform-express": "^11.1.6",
     "@nestjs/platform-socket.io": "^11.1.6",
     "@nestjs/websockets": "^11.1.6",
@@ -31,6 +37,7 @@
     "mongoose": "^8.17.1",
     "morgan": "^1.10.1",
     "multer": "^2.0.2",
+    "multer-s3": "^3.0.1",
     "node-cache": "^5.1.2",
     "pdfkit": "^0.17.1",
     "sharp": "^0.34.3",
@@ -40,6 +47,7 @@
   },
   "devDependencies": {
     "@types/multer": "^2.0.0",
+    "cross-env": "^7.0.3",
     "eslint": "^9.33.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",

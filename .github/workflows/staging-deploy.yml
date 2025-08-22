@@ -1,0 +1,150 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches:
+      - staging
+      - develop # Também fazer deploy quando houver merge em develop
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  deploy:
+    name: Deploy to Staging EC2
+    runs-on: ubuntu-latest
+    environment: staging
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Create S3 Bucket for Staging if not exists
+        run: |
+          BUCKET_NAME="chat-atendimento-uploads-staging"
+          if ! aws s3 ls "s3://${BUCKET_NAME}" 2>&1 | grep -q 'NoSuchBucket'; then
+            echo "Bucket already exists"
+          else
+            aws s3 mb "s3://${BUCKET_NAME}" --region ${{ env.AWS_REGION }}
+            echo "Bucket created"
+            
+            # Configure CORS
+            cat > cors.json <<EOF
+          {
+            "CORSRules": [{
+              "AllowedHeaders": ["*"],
+              "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
+              "AllowedOrigins": ["*"],
+              "ExposeHeaders": ["ETag"],
+              "MaxAgeSeconds": 3000
+            }]
+          }
+          EOF
+            aws s3api put-bucket-cors --bucket "${BUCKET_NAME}" --cors-configuration file://cors.json
+          fi
+      
+      - name: Deploy to Staging EC2
+        env:
+          STAGING_HOST: ${{ secrets.STAGING_EC2_HOST }}
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          MONGODB_URI_STAGING: ${{ secrets.MONGODB_URI_STAGING }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          # Save SSH key
+          echo "$SSH_KEY" > private_key.pem
+          chmod 600 private_key.pem
+          
+          # Deploy to staging server
+          ssh -o StrictHostKeyChecking=no -i private_key.pem ec2-user@${STAGING_HOST} << 'EOF'
+            # Update repository
+            if [ ! -d ~/chat-atendimento-staging ]; then
+              git clone https://github.com/${{ github.repository }}.git ~/chat-atendimento-staging
+            fi
+            
+            cd ~/chat-atendimento-staging
+            git fetch origin
+            git checkout staging || git checkout develop
+            git pull
+            
+            # Create .env.staging
+            cat > .env.staging << 'ENVFILE'
+NODE_ENV=staging
+MONGODB_URI=${{ secrets.MONGODB_URI_STAGING }}
+MONGODB_URI_STAGING=${{ secrets.MONGODB_URI_STAGING }}
+JWT_SECRET=${{ secrets.JWT_SECRET }}
+CLIENT_URL=http://${{ secrets.STAGING_EC2_HOST }}
+STAGING_URL=http://${{ secrets.STAGING_EC2_HOST }}
+STAGING_API_URL=http://${{ secrets.STAGING_EC2_HOST }}:5000
+VITE_API_URL=http://${{ secrets.STAGING_EC2_HOST }}:5000/api
+VITE_SOCKET_URL=http://${{ secrets.STAGING_EC2_HOST }}:5000
+S3_BUCKET_NAME=chat-atendimento-uploads-staging
+S3_BUCKET_STAGING=chat-atendimento-uploads-staging
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+ENABLE_SWAGGER=true
+ENVFILE
+            
+            # Load env and deploy
+            export $(cat .env.staging | xargs)
+            
+            # Stop existing containers
+            docker-compose -f docker-compose.staging.yml down || true
+            
+            # Build and start staging containers
+            docker-compose -f docker-compose.staging.yml up -d --build
+            
+            # Clean up old images
+            docker image prune -f
+            
+            echo "✅ Staging deployment complete!"
+            echo "🌐 Access at: http://${{ secrets.STAGING_EC2_HOST }}"
+            echo "📚 Swagger docs: http://${{ secrets.STAGING_EC2_HOST }}:5000/api-docs"
+          EOF
+          
+          # Clean up
+          rm private_key.pem
+      
+      - name: Health Check
+        run: |
+          sleep 15
+          response=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.STAGING_EC2_HOST }}:5000/health || echo "000")
+          if [ "$response" = "200" ]; then
+            echo "✅ Staging API is healthy!"
+          else
+            echo "⚠️ Staging API returned: $response"
+            echo "Check logs: ssh ec2-user@${{ secrets.STAGING_EC2_HOST }} 'cd ~/chat-atendimento-staging && docker-compose -f docker-compose.staging.yml logs'"
+            exit 1
+          fi
+      
+      - name: Run Smoke Tests
+        run: |
+          # Test API endpoints
+          echo "Testing staging API..."
+          
+          # Test health endpoint
+          curl -f http://${{ secrets.STAGING_EC2_HOST }}:5000/health
+          
+          # Test swagger docs
+          curl -f http://${{ secrets.STAGING_EC2_HOST }}:5000/api-docs.json
+          
+          echo "✅ All smoke tests passed!"
+      
+      - name: Notify Success
+        if: success()
+        run: |
+          echo "🎉 Staging deployment successful!"
+          echo "URLs:"
+          echo "- Frontend: http://${{ secrets.STAGING_EC2_HOST }}"
+          echo "- API: http://${{ secrets.STAGING_EC2_HOST }}:5000"
+          echo "- Swagger: http://${{ secrets.STAGING_EC2_HOST }}:5000/api-docs"

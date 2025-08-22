@@ -1,0 +1,118 @@
+name: Deploy Development
+
+on:
+  push:
+    branches: [ develop ]
+  pull_request:
+    branches: [ develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        
+    - name: Install Backend Dependencies
+      working-directory: ./backend
+      run: |
+        npm ci
+        
+    - name: Install Frontend Dependencies
+      working-directory: ./frontend
+      run: |
+        npm ci
+        
+    - name: Run Backend Tests
+      working-directory: ./backend
+      run: |
+        npm run lint || true
+        # npm test (quando tiver testes)
+        
+    - name: Run Frontend Tests
+      working-directory: ./frontend
+      run: |
+        # npm test (quando tiver testes)
+        echo "Frontend tests placeholder"
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        
+    - name: Build Backend
+      working-directory: ./backend
+      env:
+        NODE_ENV: development
+        MONGODB_URI: ${{ secrets.MONGODB_URI_DEV }}
+        JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      run: |
+        npm ci
+        echo "Backend build completed"
+        
+    - name: Build Frontend
+      working-directory: ./frontend
+      env:
+        REACT_APP_API_URL: ${{ secrets.API_URL_DEV }}
+      run: |
+        npm ci
+        npm run build
+        
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: development-build
+        path: |
+          backend/
+          frontend/build/
+          
+  notify:
+    needs: build
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Notify Success
+      if: success()
+      run: |
+        echo "✅ Development build successful!"
+        echo "Branch: develop"
+        echo "Commit: ${{ github.sha }}"
+        echo "Author: ${{ github.actor }}"
+        
+    - name: Notify Failure
+      if: failure()
+      run: |
+        echo "❌ Development build failed!"
+        echo "Please check the logs above for errors."
+
+  # Deploy local development (opcional - para ambientes de dev compartilhados)
+  deploy-dev:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    environment:
+      name: development
+      url: http://localhost:3000
+    
+    steps:
+    - name: Development Deploy Info
+      run: |
+        echo "📦 Development Environment Ready"
+        echo "This is a local development branch."
+        echo "To deploy locally, pull the latest changes and run:"
+        echo "  cd backend && npm run dev"
+        echo "  cd frontend && npm start"

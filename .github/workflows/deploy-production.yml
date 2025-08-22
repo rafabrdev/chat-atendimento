@@ -1,0 +1,272 @@
+name: Deploy Production
+
+on:
+  push:
+    branches: [ main ]
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: chat-atendimento-prod
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        
+    - name: Install Backend Dependencies
+      working-directory: ./backend
+      run: npm ci
+        
+    - name: Install Frontend Dependencies
+      working-directory: ./frontend
+      run: npm ci
+        
+    - name: Run Backend Tests
+      working-directory: ./backend
+      run: |
+        npm run lint || true
+        # npm test - IMPORTANTE: Adicionar testes antes de produção
+        
+    - name: Run Frontend Tests
+      working-directory: ./frontend
+      run: |
+        # npm test - IMPORTANTE: Adicionar testes antes de produção
+        echo "Frontend tests placeholder"
+
+  build-and-deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+    
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        
+    - name: Build Backend
+      working-directory: ./backend
+      env:
+        NODE_ENV: production
+        MONGODB_URI: ${{ secrets.MONGODB_URI_PROD }}
+        JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_PROD }}
+      run: |
+        npm ci --production
+        echo "Backend build completed for production"
+        
+    - name: Build Frontend
+      working-directory: ./frontend
+      env:
+        REACT_APP_API_URL: ${{ secrets.API_URL_PROD }}
+        REACT_APP_ENV: production
+        GENERATE_SOURCEMAP: false
+      run: |
+        npm ci
+        npm run build
+        
+    - name: Build Docker images
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        # Build backend image
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:backend-$IMAGE_TAG ./backend
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:backend-$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:backend-latest
+        
+        # Build frontend image
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:frontend-$IMAGE_TAG ./frontend
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:frontend-$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:frontend-latest
+        
+    - name: Push images to ECR
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:backend-$IMAGE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:backend-latest
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:frontend-$IMAGE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:frontend-latest
+        
+    - name: Create S3 Bucket if not exists
+      run: |
+        aws s3api head-bucket --bucket ${{ secrets.S3_BUCKET_PROD }} 2>/dev/null || \
+        aws s3api create-bucket --bucket ${{ secrets.S3_BUCKET_PROD }} --region ${{ env.AWS_REGION }}
+        
+        # Configure bucket for production (versioning, encryption)
+        aws s3api put-bucket-versioning --bucket ${{ secrets.S3_BUCKET_PROD }} \
+          --versioning-configuration Status=Enabled
+        
+        aws s3api put-bucket-encryption --bucket ${{ secrets.S3_BUCKET_PROD }} \
+          --server-side-encryption-configuration '{"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]}'
+        
+    - name: Deploy to Production EC2
+      id: deploy
+      env:
+        PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY_PROD }}
+        HOSTNAME: ${{ secrets.EC2_HOST_PROD }}
+        USER_NAME: ${{ secrets.EC2_USER }}
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        echo "$PRIVATE_KEY" > private_key && chmod 600 private_key
+        
+        # Backup current deployment
+        ssh -o StrictHostKeyChecking=no -i private_key ${USER_NAME}@${HOSTNAME} '
+          if [ -d ~/chat-atendimento ]; then
+            cp -r ~/chat-atendimento ~/chat-atendimento-backup-$(date +%Y%m%d-%H%M%S)
+          fi
+          mkdir -p ~/chat-atendimento
+        '
+        
+        # Copy deployment files
+        scp -o StrictHostKeyChecking=no -i private_key \
+          ./docker-compose.production.yml \
+          ${USER_NAME}@${HOSTNAME}:~/chat-atendimento/
+        
+        # Deploy application
+        ssh -o StrictHostKeyChecking=no -i private_key ${USER_NAME}@${HOSTNAME} "
+          cd ~/chat-atendimento
+          
+          # Login to ECR
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $ECR_REGISTRY
+          
+          # Set environment variables
+          export NODE_ENV=production
+          export MONGODB_URI='${{ secrets.MONGODB_URI_PROD }}'
+          export JWT_SECRET='${{ secrets.JWT_SECRET }}'
+          export AWS_ACCESS_KEY_ID='${{ secrets.AWS_ACCESS_KEY_ID }}'
+          export AWS_SECRET_ACCESS_KEY='${{ secrets.AWS_SECRET_ACCESS_KEY }}'
+          export S3_BUCKET_NAME='${{ secrets.S3_BUCKET_PROD }}'
+          export ECR_REGISTRY='$ECR_REGISTRY'
+          export ECR_REPOSITORY='$ECR_REPOSITORY'
+          export IMAGE_TAG='$IMAGE_TAG'
+          
+          # Stop current deployment with zero-downtime
+          docker-compose -f docker-compose.production.yml up -d --no-deps --build backend-new
+          sleep 10
+          docker-compose -f docker-compose.production.yml stop backend
+          docker-compose -f docker-compose.production.yml rm -f backend
+          docker-compose -f docker-compose.production.yml up -d --no-deps backend
+          
+          # Deploy frontend
+          docker-compose -f docker-compose.production.yml up -d --no-deps --build frontend
+          
+          # Clean old images
+          docker image prune -f
+          
+          # Health check
+          sleep 15
+          curl -f http://localhost/api/health || exit 1
+        "
+        
+        echo "url=https://${{ secrets.PRODUCTION_DOMAIN }}" >> $GITHUB_OUTPUT
+        
+    - name: CloudFront Cache Invalidation
+      run: |
+        aws cloudfront create-invalidation \
+          --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+          --paths "/*" || true
+        
+    - name: Production Health Check
+      run: |
+        sleep 20
+        curl -f https://${{ secrets.PRODUCTION_DOMAIN }}/api/health || exit 1
+        
+    - name: Create Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ github.run_number }}
+        release_name: Production Release v${{ github.run_number }}
+        body: |
+          ## Production Deployment
+          - **Commit**: ${{ github.sha }}
+          - **Deployed by**: ${{ github.actor }}
+          - **Environment**: Production
+          - **URL**: https://${{ secrets.PRODUCTION_DOMAIN }}
+        draft: false
+        prerelease: false
+        
+  rollback:
+    needs: build-and-deploy
+    runs-on: ubuntu-latest
+    if: failure()
+    
+    steps:
+    - name: Rollback Production
+      env:
+        PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY_PROD }}
+        HOSTNAME: ${{ secrets.EC2_HOST_PROD }}
+        USER_NAME: ${{ secrets.EC2_USER }}
+      run: |
+        echo "$PRIVATE_KEY" > private_key && chmod 600 private_key
+        
+        ssh -o StrictHostKeyChecking=no -i private_key ${USER_NAME}@${HOSTNAME} '
+          cd ~/chat-atendimento
+          
+          # Rollback to previous version
+          docker-compose -f docker-compose.production.yml down
+          
+          # Restore backup if exists
+          LATEST_BACKUP=$(ls -t ~/chat-atendimento-backup-* 2>/dev/null | head -1)
+          if [ -n "$LATEST_BACKUP" ]; then
+            echo "Rolling back to $LATEST_BACKUP"
+            rm -rf ~/chat-atendimento
+            mv "$LATEST_BACKUP" ~/chat-atendimento
+            cd ~/chat-atendimento
+            docker-compose -f docker-compose.production.yml up -d
+          fi
+        '
+        
+    - name: Notify Rollback
+      run: |
+        echo "⚠️ Production deployment failed and was rolled back!"
+        echo "Please investigate the issue before attempting another deployment."
+        
+  notify:
+    needs: build-and-deploy
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Notify Success
+      if: success()
+      run: |
+        echo "✅ Production deployment successful!"
+        echo "URL: https://${{ secrets.PRODUCTION_DOMAIN }}"
+        echo "Version: v${{ github.run_number }}"
+        echo "Commit: ${{ github.sha }}"
+        echo "Deployed by: ${{ github.actor }}"
+        
+    - name: Notify Failure
+      if: failure()
+      run: |
+        echo "❌ Production deployment failed!"
+        echo "Automatic rollback initiated."
+        echo "Please check the logs for errors before retrying."
