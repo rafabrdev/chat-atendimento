@@ -1,6 +1,6 @@
 import React from 'react';
-import ChatContainer from '../components/chat/ChatContainer';
-import AgentChatContainer from '../components/chat/AgentChatContainer';
+import ChatContainer from '../components/Chat/ChatContainer';
+import AgentChatContainer from '../components/Chat/AgentChatContainer';
 import { useAuth } from '../context/AuthContext';
 
 const Conversations = () => {
