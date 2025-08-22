@@ -1,0 +1,15 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copiar package.json
+COPY package*.json ./
+
+# Instalar dependências
+RUN npm install
+
+# Expor porta do Vite
+EXPOSE 3000
+
+# Comando padrão (será sobrescrito pelo docker-compose)
+CMD ["npm", "run", "dev"]

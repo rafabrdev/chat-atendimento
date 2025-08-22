@@ -1,0 +1,21 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Instalar nodemon globalmente para hot-reload
+RUN npm install -g nodemon
+
+# Copiar package.json
+COPY package*.json ./
+
+# Instalar dependências (incluindo dev dependencies)
+RUN npm install
+
+# Expor porta
+EXPOSE 5000
+
+# Porta de debug
+EXPOSE 9229
+
+# Comando padrão (será sobrescrito pelo docker-compose)
+CMD ["npm", "run", "dev"]

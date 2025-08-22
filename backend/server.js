@@ -59,7 +59,41 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
   }
 }));
 
+// Swagger Documentation
+if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_SWAGGER === 'true') {
+  const { setupSwagger } = require('./config/swagger');
+  setupSwagger(app);
+}
+
 // Health check
+/**
+ * @swagger
+ * /health:
+ *   get:
+ *     tags: [Health]
+ *     summary: Verificar status do servidor
+ *     description: Retorna o status de saúde do servidor
+ *     responses:
+ *       200:
+ *         description: Servidor funcionando corretamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Servidor funcionando
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *                 environment:
+ *                   type: string
+ *                   example: production
+ */
 app.get('/health', (req, res) => {
   res.status(200).json({
     success: true,

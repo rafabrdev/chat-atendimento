@@ -1,0 +1,129 @@
+version: '3.8'
+
+services:
+  # MongoDB Local para desenvolvimento
+  mongodb-dev:
+    image: mongo:7
+    container_name: chat-mongodb-dev
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: dev123456
+      MONGO_INITDB_DATABASE: chat-atendimento-dev
+    volumes:
+      - mongodb_dev_data:/data/db
+    ports:
+      - "27017:27017"
+    networks:
+      - chat-network-dev
+
+  # Mongo Express para visualizar o banco
+  mongo-express:
+    image: mongo-express
+    container_name: chat-mongo-express
+    restart: unless-stopped
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
+      ME_CONFIG_MONGODB_ADMINPASSWORD: dev123456
+      ME_CONFIG_MONGODB_URL: mongodb://admin:dev123456@mongodb-dev:27017/
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: admin123
+    ports:
+      - "8081:8081"
+    depends_on:
+      - mongodb-dev
+    networks:
+      - chat-network-dev
+
+  # Backend API (desenvolvimento com hot-reload)
+  backend-dev:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: chat-backend-dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 5000
+      MONGODB_URI: mongodb://admin:dev123456@mongodb-dev:27017/chat-atendimento-dev?authSource=admin
+      JWT_SECRET: dev-jwt-secret-change-in-production
+      JWT_EXPIRE: 7d
+      CLIENT_URL: http://localhost:3000
+      # Usar LocalStack para simular S3 localmente
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      S3_BUCKET_NAME: chat-uploads-dev
+      S3_ENDPOINT: http://localstack:4566
+      AWS_REGION: us-east-1
+    ports:
+      - "5000:5000"
+      - "9229:9229" # Debug port
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+      - ./backend/uploads:/app/uploads
+    depends_on:
+      - mongodb-dev
+      - localstack
+    networks:
+      - chat-network-dev
+    command: npm run dev
+
+  # Frontend (desenvolvimento com hot-reload)
+  frontend-dev:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: chat-frontend-dev
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: http://localhost:5000/api
+      VITE_SOCKET_URL: http://localhost:5000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend-dev
+    networks:
+      - chat-network-dev
+    command: npm run dev -- --host 0.0.0.0 --port 3000
+
+  # LocalStack para simular AWS S3 localmente
+  localstack:
+    image: localstack/localstack
+    container_name: chat-localstack
+    environment:
+      - SERVICES=s3
+      - DEBUG=1
+      - DATA_DIR=/tmp/localstack/data
+      - DEFAULT_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+    ports:
+      - "4566:4566"
+      - "4571:4571"
+    volumes:
+      - ./localstack:/docker-entrypoint-initaws.d
+      - localstack_data:/tmp/localstack
+    networks:
+      - chat-network-dev
+
+  # MailHog para capturar emails em desenvolvimento
+  mailhog:
+    image: mailhog/mailhog
+    container_name: chat-mailhog
+    ports:
+      - "1025:1025" # SMTP
+      - "8025:8025" # Web UI
+    networks:
+      - chat-network-dev
+
+networks:
+  chat-network-dev:
+    driver: bridge
+
+volumes:
+  mongodb_dev_data:
+  localstack_data:
