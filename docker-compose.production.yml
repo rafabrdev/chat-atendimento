@@ -1,0 +1,118 @@
+version: '3.8'
+
+services:
+  # Backend API (Production)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: chat-backend:production
+    container_name: chat-backend-prod
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      # MongoDB Atlas Production
+      MONGODB_URI: ${MONGODB_URI_PROD:-mongodb+srv://chatadmin:pMwrRrCbus50k7DR@chat-atendimento.7mtwmy0.mongodb.net/chat-atendimento-prod?retryWrites=true&w=majority}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRE: 7d
+      CLIENT_URL: https://suporte.brsi.net.br
+      CORS_ORIGIN: https://suporte.brsi.net.br
+      # AWS S3 Production
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      S3_BUCKET_NAME: ${S3_BUCKET_PROD:-chat-atendimento-uploads-726}
+      AWS_REGION: us-east-1
+      USE_S3: true
+      # Security
+      RATE_LIMIT_WINDOW_MS: 900000
+      RATE_LIMIT_MAX_REQUESTS: 100
+      SESSION_TIMEOUT: 3600000
+      # Features
+      ENABLE_SWAGGER: false
+      DEBUG: false
+      LOG_LEVEL: error
+    ports:
+      - "3001:3001"
+    networks:
+      - chat-network-prod
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Frontend (Production)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: https://suporte.brsi.net.br/api
+        VITE_SOCKET_URL: https://suporte.brsi.net.br
+        GENERATE_SOURCEMAP: false
+    image: chat-frontend:production
+    container_name: chat-frontend-prod
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - chat-network-prod
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Nginx Reverse Proxy with SSL
+  nginx:
+    image: nginx:alpine
+    container_name: chat-nginx-prod
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/production.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+      - ./nginx/certbot:/var/www/certbot
+      - /etc/letsencrypt:/etc/letsencrypt
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - chat-network-prod
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Certbot for SSL certificates (Let's Encrypt)
+  certbot:
+    image: certbot/certbot
+    container_name: chat-certbot-prod
+    restart: unless-stopped
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt
+      - ./nginx/certbot:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    networks:
+      - chat-network-prod
+
+networks:
+  chat-network-prod:
+    driver: bridge
+
+volumes:
+  letsencrypt:
+    driver: local

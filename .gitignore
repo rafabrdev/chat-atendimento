@@ -4,8 +4,21 @@ node_modules/
 
 # Environment variables
 .env
+.env.*
+!.env.example
+!.env.*.example
 .env.local
-.env.development.local
+.env.*.local
+
+# Credentials and secrets
+*credentials*
+*secrets*
+*.pem
+*.key
+*.cert
+*.p12
+CREDENTIALS_PRIVATE.md
+AWS_CREDENTIALS.md
 .env.test.local
 .env.production.local
 

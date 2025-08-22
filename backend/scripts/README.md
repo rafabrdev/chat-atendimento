@@ -100,7 +100,7 @@ docker-compose up
 
 ### MongoDB Atlas
 ```env
-MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/database
+MONGODB_URI=mongodb+srv://[USERNAME]:[PASSWORD]@cluster.mongodb.net/database
 ```
 
 ### AWS S3 (Staging/Production)

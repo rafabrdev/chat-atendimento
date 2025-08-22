@@ -12,7 +12,7 @@ const environments = {
     name: 'Development',
     mongodb: {
       // Usar MongoDB Atlas para desenvolvimento
-      uri: process.env.MONGODB_URI_DEV || 'mongodb+srv://chatadmin:pMwrRrCbus50k7DR@chat-atendimento.7mtwmy0.mongodb.net/chat-dev?retryWrites=true&w=majority',
+      uri: process.env.MONGODB_URI_DEV || 'mongodb+srv://[USERNAME]:[PASSWORD]@chat-atendimento.7mtwmy0.mongodb.net/chat-dev?retryWrites=true&w=majority',
       dbName: 'chat-dev'
     },
     s3: {
@@ -36,7 +36,7 @@ const environments = {
     name: 'Staging',
     mongodb: {
       // MongoDB Atlas Staging (criar novo cluster ou database)
-      uri: process.env.MONGODB_URI_STAGING || 'mongodb+srv://chatadmin:pMwrRrCbus50k7DR@chat-atendimento.7mtwmy0.mongodb.net/chat-staging?retryWrites=true&w=majority',
+      uri: process.env.MONGODB_URI_STAGING || 'mongodb+srv://[USERNAME]:[PASSWORD]@chat-atendimento.7mtwmy0.mongodb.net/chat-staging?retryWrites=true&w=majority',
       dbName: 'chat-staging'
     },
     s3: {
@@ -60,12 +60,12 @@ const environments = {
     name: 'Production',
     mongodb: {
       // MongoDB Atlas Produção
-      uri: process.env.MONGODB_URI || 'mongodb+srv://chatadmin:pMwrRrCbus50k7DR@chat-atendimento.7mtwmy0.mongodb.net/chat-atendimento?retryWrites=true&w=majority',
+      uri: process.env.MONGODB_URI || 'mongodb+srv://[USERNAME]:[PASSWORD]@chat-atendimento.7mtwmy0.mongodb.net/chat-atendimento?retryWrites=true&w=majority',
       dbName: 'chat-atendimento'
     },
     s3: {
       useS3: true,
-      bucket: process.env.S3_BUCKET_NAME || 'chat-atendimento-uploads-726',
+      bucket: process.env.S3_BUCKET_NAME || '[S3_BUCKET_NAME]',
       region: 'us-east-1'
     },
     urls: {

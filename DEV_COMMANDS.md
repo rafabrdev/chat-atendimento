@@ -124,10 +124,10 @@ aws configure
 # Use as credenciais do CREDENTIALS_PRIVATE.md
 
 # Listar arquivos
-aws s3 ls s3://chat-atendimento-uploads-726/
+aws s3 ls s3://[S3_BUCKET_NAME]/
 
 # Estatísticas do bucket
-aws s3 ls s3://chat-atendimento-uploads-726/ --recursive --summarize
+aws s3 ls s3://[S3_BUCKET_NAME]/ --recursive --summarize
 ```
 
 ---
@@ -229,7 +229,7 @@ db.messages.deleteMany({chat: ObjectId("...")})
 ### Backup do MongoDB Atlas
 ```bash
 # Fazer backup
-mongodump --uri="mongodb+srv://chatadmin:pMwrRrCbus50k7DR@chat-atendimento.7mtwmy0.mongodb.net/chat-atendimento"
+mongodump --uri="mongodb+srv://[USERNAME]:[PASSWORD]@chat-atendimento.7mtwmy0.mongodb.net/chat-atendimento"
 
 # Restaurar localmente
 mongorestore --uri="mongodb://admin:dev123456@localhost:27017/chat-atendimento-dev?authSource=admin" dump/
@@ -238,7 +238,7 @@ mongorestore --uri="mongodb://admin:dev123456@localhost:27017/chat-atendimento-d
 ### Sincronizar S3
 ```bash
 # Download de produção
-aws s3 sync s3://chat-atendimento-uploads-726/ ./backup-s3/
+aws s3 sync s3://[S3_BUCKET_NAME]/ ./backup-s3/
 
 # Upload para desenvolvimento
 aws --endpoint-url=http://localhost:4566 s3 sync ./backup-s3/ s3://chat-uploads-dev/
