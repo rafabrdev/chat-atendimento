@@ -202,26 +202,29 @@ jobs:
             git checkout staging
             git pull origin staging
             
-            # Create .env file with secrets (using environment variables)
-            cat > .env << 'ENVFILE'
+            # Create .env file with secrets
+            cat > backend/.env << EOF
 NODE_ENV=staging
 PORT=5000
 MONGODB_URI=${{ secrets.MONGODB_URI }}
 JWT_SECRET=${{ secrets.JWT_SECRET }}
 AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
 AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
-S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
+S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME_STAGING }}
 AWS_REGION=us-east-1
-CLIENT_URL=http://${{ secrets.EC2_HOST }}
-VITE_API_URL=http://${{ secrets.EC2_HOST }}:5000/api
-VITE_SOCKET_URL=http://${{ secrets.EC2_HOST }}:5000
-ENVFILE
+CLIENT_URL=http://${{ secrets.EC2_HOST }}:3000
+EOF
+            
+            cat > frontend/.env << EOF
+VITE_API_URL=http://${{ secrets.EC2_HOST }}:3001/api
+VITE_SOCKET_URL=http://${{ secrets.EC2_HOST }}:3001
+EOF
             
             # Stop existing containers
             docker-compose down || true
             
             # Start services
-            docker-compose -f docker-compose.staging.yml up -d --build
+            docker-compose -f docker-staging.yml up -d --build
             
             # Clean old images
             docker image prune -f
@@ -235,7 +238,7 @@ ENVFILE
       - name: Health Check
         run: |
           sleep 20
-          response=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.EC2_HOST }}:5000/health || echo "000")
+          response=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.EC2_HOST }}:3001/health || echo "000")
           if [ "$response" = "200" ]; then
             echo "✅ Staging API is healthy!"
           else
@@ -298,23 +301,26 @@ ENVFILE
             git checkout main
             git pull origin main
             
-            # Create production .env
-            cat > .env << 'ENVFILE'
+            # Create production .env files
+            cat > backend/.env << EOF
 NODE_ENV=production
 PORT=5000
-MONGODB_URI=${{ secrets.MONGODB_URI }}
+MONGODB_URI=${{ secrets.MONGODB_URI_PROD }}
 JWT_SECRET=${{ secrets.JWT_SECRET }}
 AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
 AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
-S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
+S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME_PRODUCTION }}
 AWS_REGION=us-east-1
 CLIENT_URL=https://suporte.brsi.net.br
-VITE_API_URL=https://suporte.brsi.net.br/api
-VITE_SOCKET_URL=https://suporte.brsi.net.br
-ENVFILE
+EOF
+            
+            cat > frontend/.env << EOF
+VITE_API_URL=http://${{ secrets.EC2_HOST }}:3002/api
+VITE_SOCKET_URL=http://${{ secrets.EC2_HOST }}:3002
+EOF
             
             # Deploy with zero downtime
-            docker-compose -f docker-compose.production.yml up -d --build
+            docker-compose -f docker-production.yml up -d --build
             
             # Clean old images
             docker image prune -f
@@ -330,7 +336,7 @@ ENVFILE
           # Check if domain is configured
           if curl -s -o /dev/null -w "%{http_code}" https://suporte.brsi.net.br/health | grep -q "200"; then
             echo "✅ Production API is healthy (HTTPS)!"
-          elif curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.EC2_HOST }}:5000/health | grep -q "200"; then
+          elif curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.EC2_HOST }}:3002/health | grep -q "200"; then
             echo "⚠️ API is healthy on HTTP only. Configure SSL/HTTPS!"
           else
             echo "❌ Production API health check failed!"
@@ -374,7 +380,7 @@ ENVFILE
             cd ~/chat-atendimento
             
             # Stop current deployment
-            docker-compose -f docker-compose.production.yml down
+            docker-compose -f docker-production.yml down
             
             # Restore backup
             LATEST_BACKUP=$(ls -t ~/chat-atendimento-backup-* 2>/dev/null | head -1)
@@ -383,7 +389,7 @@ ENVFILE
               rm -rf ~/chat-atendimento
               mv "$LATEST_BACKUP" ~/chat-atendimento
               cd ~/chat-atendimento
-              docker-compose -f docker-compose.production.yml up -d
+              docker-compose -f docker-production.yml up -d
               echo "✅ Rollback completed"
             else
               echo "❌ No backup found for rollback"
