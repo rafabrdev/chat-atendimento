@@ -154,7 +154,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: staging
-      url: ${{ format('http://{0}', secrets.EC2_HOST) }}
+      url: http://52.90.17.204:3001
     
     steps:
       - name: Checkout code
@@ -172,13 +172,18 @@ jobs:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER || 'ec2-user' }}
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          S3_BUCKET_NAME_STAGING: ${{ secrets.S3_BUCKET_NAME_STAGING }}
         run: |
           # Save SSH key
           echo "$EC2_SSH_KEY" > private_key.pem
           chmod 600 private_key.pem
           
           # Deploy via SSH with environment variables
-          ssh -o StrictHostKeyChecking=no -i private_key.pem ${EC2_USER}@${EC2_HOST} << ENDSSH
+          ssh -o StrictHostKeyChecking=no -i private_key.pem ${EC2_USER}@${EC2_HOST} << 'ENDSSH'
             # Ensure Docker is installed
             if ! command -v docker &> /dev/null; then
               echo "Installing Docker..."
@@ -194,7 +199,7 @@ jobs:
             
             # Clone or update repository
             if [ ! -d ~/chat-atendimento ]; then
-              git clone https://github.com/${{ github.repository }}.git ~/chat-atendimento
+              git clone https://github.com/rafabrdev/chat-atendimento.git ~/chat-atendimento
             fi
             
             cd ~/chat-atendimento
@@ -206,19 +211,19 @@ jobs:
             cat > backend/.env <<-ENVFILE
             NODE_ENV=staging
             PORT=3001
-            MONGODB_URI=${{ secrets.MONGODB_URI }}
-            JWT_SECRET=${{ secrets.JWT_SECRET }}
-            AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
-            AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
-            S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME_STAGING }}
+            MONGODB_URI='${MONGODB_URI}'
+            JWT_SECRET='${JWT_SECRET}'
+            AWS_ACCESS_KEY_ID='${AWS_ACCESS_KEY_ID}'
+            AWS_SECRET_ACCESS_KEY='${AWS_SECRET_ACCESS_KEY}'
+            S3_BUCKET_NAME='${S3_BUCKET_NAME_STAGING}'
             AWS_REGION=us-east-1
-            CLIENT_URL=http://${{ secrets.EC2_HOST }}:3000
+            CLIENT_URL=http://${EC2_HOST}:3000
             ENVFILE
             
             # Create frontend .env file
             cat > frontend/.env <<-ENVFILE2
-            VITE_API_URL=http://${{ secrets.EC2_HOST }}:3001/api
-            VITE_SOCKET_URL=http://${{ secrets.EC2_HOST }}:3001
+            VITE_API_URL=http://${EC2_HOST}:3001/api
+            VITE_SOCKET_URL=http://${EC2_HOST}:3001
             ENVFILE2
             
             # Stop existing containers
@@ -291,6 +296,11 @@ jobs:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER || 'ec2-user' }}
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          MONGODB_URI_PROD: ${{ secrets.MONGODB_URI_PROD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          S3_BUCKET_NAME_PRODUCTION: ${{ secrets.S3_BUCKET_NAME_PRODUCTION }}
         run: |
           echo "$EC2_SSH_KEY" > private_key.pem
           chmod 600 private_key.pem
@@ -306,19 +316,19 @@ jobs:
             cat > backend/.env <<-ENVFILE
             NODE_ENV=production
             PORT=3002
-            MONGODB_URI=${{ secrets.MONGODB_URI_PROD }}
-            JWT_SECRET=${{ secrets.JWT_SECRET }}
-            AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
-            AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
-            S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME_PRODUCTION }}
+            MONGODB_URI='${MONGODB_URI_PROD}'
+            JWT_SECRET='${JWT_SECRET}'
+            AWS_ACCESS_KEY_ID='${AWS_ACCESS_KEY_ID}'
+            AWS_SECRET_ACCESS_KEY='${AWS_SECRET_ACCESS_KEY}'
+            S3_BUCKET_NAME='${S3_BUCKET_NAME_PRODUCTION}'
             AWS_REGION=us-east-1
             CLIENT_URL=https://suporte.brsi.net.br
             ENVFILE
             
             # Create frontend .env file
             cat > frontend/.env <<-ENVFILE2
-            VITE_API_URL=http://${{ secrets.EC2_HOST }}:3002/api
-            VITE_SOCKET_URL=http://${{ secrets.EC2_HOST }}:3002
+            VITE_API_URL=http://${EC2_HOST}:3002/api
+            VITE_SOCKET_URL=http://${EC2_HOST}:3002
             ENVFILE2
             
             # Deploy with zero downtime
