@@ -111,7 +111,7 @@ jobs:
           echo "✅ Frontend build completed for ${{ steps.determine-env.outputs.environment }}"
       
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: build-${{ steps.determine-env.outputs.environment }}
           path: |
@@ -355,12 +355,11 @@ jobs:
       
       - name: Create Release
         if: success()
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: ncipollo/release-action@v1
         with:
-          tag_name: v${{ github.run_number }}
-          release_name: Production Release v${{ github.run_number }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: v${{ github.run_number }}
+          name: Production Release v${{ github.run_number }}
           body: |
             ## Production Deployment
             - **Commit**: ${{ github.sha }}
