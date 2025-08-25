@@ -203,23 +203,23 @@ jobs:
             git pull origin staging
             
             # Create backend .env file
-            cat > backend/.env << EOF
-NODE_ENV=staging
-PORT=3001
-MONGODB_URI=${{ secrets.MONGODB_URI }}
-JWT_SECRET=${{ secrets.JWT_SECRET }}
-AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
-AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
-S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME_STAGING }}
-AWS_REGION=us-east-1
-CLIENT_URL=http://${{ secrets.EC2_HOST }}:3000
-EOF
+            cat > backend/.env <<-ENVFILE
+            NODE_ENV=staging
+            PORT=3001
+            MONGODB_URI=${{ secrets.MONGODB_URI }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME_STAGING }}
+            AWS_REGION=us-east-1
+            CLIENT_URL=http://${{ secrets.EC2_HOST }}:3000
+            ENVFILE
             
             # Create frontend .env file
-            cat > frontend/.env << EOF
-VITE_API_URL=http://${{ secrets.EC2_HOST }}:3001/api
-VITE_SOCKET_URL=http://${{ secrets.EC2_HOST }}:3001
-EOF
+            cat > frontend/.env <<-ENVFILE2
+            VITE_API_URL=http://${{ secrets.EC2_HOST }}:3001/api
+            VITE_SOCKET_URL=http://${{ secrets.EC2_HOST }}:3001
+            ENVFILE2
             
             # Stop existing containers
             docker-compose down || true
@@ -303,23 +303,23 @@ EOF
             git pull origin main
             
             # Create production .env files
-            cat > backend/.env << EOF
-NODE_ENV=production
-PORT=3002
-MONGODB_URI=${{ secrets.MONGODB_URI_PROD }}
-JWT_SECRET=${{ secrets.JWT_SECRET }}
-AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
-AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
-S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME_PRODUCTION }}
-AWS_REGION=us-east-1
-CLIENT_URL=https://suporte.brsi.net.br
-EOF
+            cat > backend/.env <<-ENVFILE
+            NODE_ENV=production
+            PORT=3002
+            MONGODB_URI=${{ secrets.MONGODB_URI_PROD }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME_PRODUCTION }}
+            AWS_REGION=us-east-1
+            CLIENT_URL=https://suporte.brsi.net.br
+            ENVFILE
             
             # Create frontend .env file
-            cat > frontend/.env << EOF
-VITE_API_URL=http://${{ secrets.EC2_HOST }}:3002/api
-VITE_SOCKET_URL=http://${{ secrets.EC2_HOST }}:3002
-EOF
+            cat > frontend/.env <<-ENVFILE2
+            VITE_API_URL=http://${{ secrets.EC2_HOST }}:3002/api
+            VITE_SOCKET_URL=http://${{ secrets.EC2_HOST }}:3002
+            ENVFILE2
             
             # Deploy with zero downtime
             docker-compose -f docker-production.yml up -d --build
