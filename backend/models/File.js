@@ -52,6 +52,24 @@ const fileSchema = new mongoose.Schema({
     height: Number,
     duration: Number, // For video/audio
     pages: Number // For documents
+  },
+  // S3 specific fields
+  s3Key: {
+    type: String,
+    sparse: true // Allow null for local files
+  },
+  s3Bucket: {
+    type: String,
+    sparse: true
+  },
+  s3Location: {
+    type: String,
+    sparse: true
+  },
+  storageType: {
+    type: String,
+    enum: ['local', 's3'],
+    default: 'local'
   }
 }, {
   timestamps: true

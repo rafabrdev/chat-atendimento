@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { auth: protect } = require('../middleware/auth');
-const { upload, handleUploadError } = require('../config/upload');
+const { upload, handleUploadError } = require('../config/uploadS3');
 const {
   uploadFiles,
   getConversationFiles,

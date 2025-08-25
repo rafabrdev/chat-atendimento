@@ -3,7 +3,7 @@ const Conversation = require('../models/Conversation');
 const path = require('path');
 const fs = require('fs');
 const sharp = require('sharp');
-const { getSubDirectory } = require('../config/upload');
+const { getSubDirectory, getFileUrl, useS3 } = require('../config/uploadS3');
 
 // Generate thumbnail for images
 const generateThumbnail = async (filePath, fileType) => {
@@ -70,19 +70,26 @@ exports.uploadFiles = async (req, res) => {
     const uploadedFiles = [];
     
     for (const file of req.files) {
-      const subDir = getSubDirectory(file.mimetype);
-      const fileUrl = `/uploads/${subDir}/${file.filename}`;
+      // Get file URL (S3 or local)
+      const fileUrl = getFileUrl(file);
       
       // Create file record
       const fileDoc = new File({
-        filename: file.filename,
+        filename: file.filename || file.key, // Use key for S3
         originalName: file.originalname,
         mimetype: file.mimetype,
         size: file.size,
-        path: file.path,
+        path: useS3 ? file.location : file.path, // S3 location or local path
         url: fileUrl,
         uploadedBy: req.user._id,
-        conversation: conversationId
+        conversation: conversationId,
+        storageType: useS3 ? 's3' : 'local',
+        // Store S3 specific data
+        ...(useS3 && {
+          s3Key: file.key,
+          s3Bucket: file.bucket,
+          s3Location: file.location
+        })
       });
       
       // Generate thumbnail for images
