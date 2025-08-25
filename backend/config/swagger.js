@@ -13,28 +13,34 @@ const options = {
         ## Funcionalidades
         - Autenticação JWT
         - Chat em tempo real com WebSocket
-        - Upload de arquivos (S3)
+        - Upload de arquivos (AWS S3)
         - Gerenciamento de atendentes
         - Fila de atendimento
         - Dashboard administrativo
+        - Histórico e análises
         
         ## Ambientes
-        - **Produção**: http://52.90.17.204:5000
         - **Desenvolvimento**: http://localhost:5000
+        - **Staging**: http://52.90.17.204:5000
+        - **Produção**: https://api.brsi.com.br
       `,
       contact: {
         name: 'BR Sistemas',
-        email: 'suporte@brsi.net.br',
-        url: 'https://brsi.net.br'
+        email: 'suporte@brsi.com.br',
+        url: 'https://brsi.com.br'
       }
     },
     servers: [
       {
         url: 'http://localhost:5000/api',
-        description: 'Servidor de Desenvolvimento'
+        description: 'Servidor de Desenvolvimento (Local)'
       },
       {
         url: 'http://52.90.17.204:5000/api',
+        description: 'Servidor de Staging (Testes)'
+      },
+      {
+        url: 'https://api.brsi.com.br/api',
         description: 'Servidor de Produção'
       }
     ],

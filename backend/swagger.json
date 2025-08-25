@@ -1,0 +1,2618 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Chat Atendimento API",
+    "version": "1.0.0",
+    "description": "\n        API REST para sistema de chat de atendimento em tempo real.\n        \n        ## Funcionalidades\n        - Autenticação JWT\n        - Chat em tempo real com WebSocket\n        - Upload de arquivos (AWS S3)\n        - Gerenciamento de atendentes\n        - Fila de atendimento\n        - Dashboard administrativo\n        - Histórico e análises\n        \n        ## Ambientes\n        - **Desenvolvimento**: http://localhost:5000\n        - **Staging**: http://52.90.17.204:5000\n        - **Produção**: https://api.brsi.com.br\n        \n        ## Autenticação\n        Todas as rotas (exceto login e register) requerem autenticação via JWT.\n        Envie o token no header: Authorization: Bearer {token}\n      ",
+    "contact": {
+      "name": "BR Sistemas",
+      "email": "suporte@brsi.com.br",
+      "url": "https://brsi.com.br"
+    },
+    "license": {
+      "name": "Proprietary",
+      "url": "https://brsi.com.br/terms"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5000/api",
+      "description": "Servidor de Desenvolvimento (Local)"
+    },
+    {
+      "url": "http://52.90.17.204:5000/api",
+      "description": "Servidor de Staging (Testes)"
+    },
+    {
+      "url": "https://api.brsi.com.br/api",
+      "description": "Servidor de Produção"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Digite o token JWT obtido no login"
+      }
+    },
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "_id": {
+            "type": "string",
+            "description": "ID único do usuário",
+            "example": "60d0fe4f5311236168a109ca"
+          },
+          "name": {
+            "type": "string",
+            "description": "Nome completo do usuário",
+            "example": "João Silva"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Email do usuário",
+            "example": "joao@brsi.com.br"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "agent",
+              "admin",
+              "client"
+            ],
+            "description": "Papel do usuário no sistema",
+            "example": "agent"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "online",
+              "away",
+              "busy",
+              "offline"
+            ],
+            "description": "Status atual do usuário",
+            "example": "online"
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Se o usuário está ativo",
+            "example": true
+          },
+          "avatar": {
+            "type": "string",
+            "description": "URL do avatar do usuário",
+            "example": "https://chat-staging.s3.amazonaws.com/avatars/user123.jpg"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Data de criação",
+            "example": "2024-01-15T10:30:00Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Última atualização",
+            "example": "2024-01-20T15:45:00Z"
+          }
+        }
+      },
+      "Chat": {
+        "type": "object",
+        "properties": {
+          "_id": {
+            "type": "string",
+            "description": "ID único da conversa",
+            "example": "60d0fe4f5311236168a109cb"
+          },
+          "subject": {
+            "type": "string",
+            "description": "Assunto da conversa",
+            "example": "Dúvida sobre produto"
+          },
+          "customer": {
+            "type": "object",
+            "description": "Dados do cliente",
+            "properties": {
+              "_id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string",
+                "example": "Maria Santos"
+              },
+              "email": {
+                "type": "string",
+                "format": "email",
+                "example": "maria@example.com"
+              }
+            }
+          },
+          "agent": {
+            "type": "string",
+            "description": "ID do agente atribuído",
+            "example": "60d0fe4f5311236168a109ca"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "waiting",
+              "active",
+              "closed"
+            ],
+            "description": "Status atual da conversa",
+            "example": "active"
+          },
+          "department": {
+            "type": "string",
+            "description": "Departamento responsável",
+            "example": "vendas"
+          },
+          "rating": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5,
+            "description": "Avaliação do atendimento",
+            "example": 5
+          },
+          "ratingComment": {
+            "type": "string",
+            "description": "Comentário da avaliação",
+            "example": "Atendimento excelente!"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Data de criação"
+          },
+          "closedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Data de encerramento"
+          },
+          "lastActivity": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Última atividade na conversa"
+          }
+        }
+      },
+      "Message": {
+        "type": "object",
+        "properties": {
+          "_id": {
+            "type": "string",
+            "description": "ID único da mensagem"
+          },
+          "conversationId": {
+            "type": "string",
+            "description": "ID da conversa"
+          },
+          "sender": {
+            "type": "string",
+            "description": "ID do remetente"
+          },
+          "senderType": {
+            "type": "string",
+            "enum": [
+              "customer",
+              "agent",
+              "system"
+            ],
+            "description": "Tipo do remetente"
+          },
+          "content": {
+            "type": "string",
+            "description": "Conteúdo da mensagem",
+            "example": "Olá, como posso ajudar?"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "image",
+              "file",
+              "audio"
+            ],
+            "description": "Tipo de mensagem",
+            "example": "text"
+          },
+          "file": {
+            "type": "object",
+            "description": "Arquivo anexado (se houver)",
+            "properties": {
+              "url": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "size": {
+                "type": "number"
+              },
+              "mimetype": {
+                "type": "string"
+              }
+            }
+          },
+          "readBy": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "userId": {
+                  "type": "string"
+                },
+                "readAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            },
+            "description": "Usuários que leram a mensagem"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Data de envio"
+          }
+        }
+      },
+      "File": {
+        "type": "object",
+        "properties": {
+          "_id": {
+            "type": "string"
+          },
+          "filename": {
+            "type": "string",
+            "description": "Nome do arquivo",
+            "example": "documento.pdf"
+          },
+          "originalName": {
+            "type": "string",
+            "description": "Nome original do arquivo"
+          },
+          "mimetype": {
+            "type": "string",
+            "description": "Tipo MIME",
+            "example": "application/pdf"
+          },
+          "size": {
+            "type": "number",
+            "description": "Tamanho em bytes",
+            "example": 1024000
+          },
+          "s3Key": {
+            "type": "string",
+            "description": "Chave no S3"
+          },
+          "s3Bucket": {
+            "type": "string",
+            "description": "Bucket do S3",
+            "example": "chat-staging"
+          },
+          "url": {
+            "type": "string",
+            "description": "URL pública do arquivo"
+          },
+          "conversationId": {
+            "type": "string",
+            "description": "ID da conversa associada"
+          },
+          "uploadedBy": {
+            "type": "string",
+            "description": "ID do usuário que fez o upload"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "default": false,
+            "example": false
+          },
+          "error": {
+            "type": "string",
+            "description": "Mensagem de erro",
+            "example": "Token inválido ou expirado"
+          },
+          "details": {
+            "type": "object",
+            "description": "Detalhes adicionais do erro"
+          }
+        }
+      },
+      "Success": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "default": true,
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "Mensagem de sucesso",
+            "example": "Operação realizada com sucesso"
+          },
+          "data": {
+            "type": "object",
+            "description": "Dados retornados"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Auth",
+      "description": "Autenticação e autorização de usuários"
+    },
+    {
+      "name": "Chat",
+      "description": "Gerenciamento de conversas de chat"
+    },
+    {
+      "name": "Messages",
+      "description": "Mensagens dentro das conversas"
+    },
+    {
+      "name": "Users",
+      "description": "Gerenciamento de usuários e agentes"
+    },
+    {
+      "name": "Files",
+      "description": "Upload e gerenciamento de arquivos"
+    },
+    {
+      "name": "History",
+      "description": "Histórico e análises de conversas"
+    },
+    {
+      "name": "Health",
+      "description": "Status e saúde do servidor"
+    }
+  ],
+  "paths": {
+    "/api/agents/profile/{agentId}": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Obter perfil do agente",
+        "description": "Retorna o perfil de um agente específico ou do agente atual",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agentId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID do agente (opcional, usa o usuário atual se não fornecido)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Perfil do agente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "_id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "online",
+                        "away",
+                        "busy",
+                        "offline"
+                      ]
+                    },
+                    "availability": {
+                      "type": "boolean"
+                    },
+                    "currentLoad": {
+                      "type": "integer"
+                    },
+                    "maxLoad": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "404": {
+            "description": "Agente não encontrado"
+          }
+        }
+      }
+    },
+    "/api/agents/status": {
+      "put": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Atualizar status do agente",
+        "description": "Atualiza o status do agente (online, away, busy, offline)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "status"
+                ],
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "online",
+                      "away",
+                      "busy",
+                      "offline"
+                    ],
+                    "example": "online"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Status atualizado com sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "agent": {
+                      "$ref": "#/components/schemas/User"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Status inválido"
+          },
+          "403": {
+            "description": "Sem permissão - Apenas agentes e administradores"
+          }
+        }
+      }
+    },
+    "/api/agents/availability": {
+      "put": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Atualizar disponibilidade",
+        "description": "Define se o agente está disponível para receber novos atendimentos",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "available"
+                ],
+                "properties": {
+                  "available": {
+                    "type": "boolean",
+                    "example": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Disponibilidade atualizada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "availability": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sem permissão"
+          }
+        }
+      }
+    },
+    "/api/agents/preferences": {
+      "put": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Atualizar preferências do agente",
+        "description": "Atualiza preferências de atendimento do agente",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "maxConcurrentChats": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10,
+                    "example": 3
+                  },
+                  "notificationsEnabled": {
+                    "type": "boolean",
+                    "example": true
+                  },
+                  "soundEnabled": {
+                    "type": "boolean",
+                    "example": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Preferências atualizadas"
+          },
+          "403": {
+            "description": "Sem permissão"
+          }
+        }
+      }
+    },
+    "/api/agents/performance": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Obter performance do agente",
+        "description": "Retorna métricas de performance do agente atual",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "period",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "today",
+                "week",
+                "month"
+              ],
+              "default": "today"
+            },
+            "description": "Período para análise"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Métricas de performance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "totalChats": {
+                      "type": "integer"
+                    },
+                    "resolvedChats": {
+                      "type": "integer"
+                    },
+                    "avgResponseTime": {
+                      "type": "number"
+                    },
+                    "avgResolutionTime": {
+                      "type": "number"
+                    },
+                    "satisfaction": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 5
+                    },
+                    "totalRatings": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agents/performance/{agentId}": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Obter performance de agente específico",
+        "description": "Retorna métricas de performance de um agente específico (Admin only)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agentId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID do agente"
+          },
+          {
+            "in": "query",
+            "name": "period",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "today",
+                "week",
+                "month"
+              ],
+              "default": "today"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Métricas de performance"
+          },
+          "403": {
+            "description": "Sem permissão"
+          },
+          "404": {
+            "description": "Agente não encontrado"
+          }
+        }
+      }
+    },
+    "/api/agents/workload": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Obter distribuição de carga de trabalho",
+        "description": "Retorna a distribuição atual de conversas entre agentes",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Distribuição de carga de trabalho",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "agentId": {
+                        "type": "string"
+                      },
+                      "agentName": {
+                        "type": "string"
+                      },
+                      "currentLoad": {
+                        "type": "integer"
+                      },
+                      "maxLoad": {
+                        "type": "integer"
+                      },
+                      "status": {
+                        "type": "string"
+                      },
+                      "activeChats": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sem permissão"
+          }
+        }
+      }
+    },
+    "/api/agents/all": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Listar todos os agentes",
+        "description": "Retorna lista de todos os agentes do sistema",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "online",
+                "away",
+                "busy",
+                "offline"
+              ]
+            },
+            "description": "Filtrar por status"
+          },
+          {
+            "in": "query",
+            "name": "available",
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Filtrar por disponibilidade"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de agentes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/User"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sem permissão"
+          }
+        }
+      }
+    },
+    "/api/agents/auto-assign": {
+      "post": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Auto-atribuir conversa",
+        "description": "Atribui automaticamente uma conversa ao agente mais adequado",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "conversationId"
+                ],
+                "properties": {
+                  "conversationId": {
+                    "type": "string",
+                    "example": "60d0fe4f5311236168a109ca"
+                  },
+                  "department": {
+                    "type": "string",
+                    "example": "vendas"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Conversa atribuída com sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "assignedAgent": {
+                      "type": "object",
+                      "properties": {
+                        "_id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "conversation": {
+                      "$ref": "#/components/schemas/Chat"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Nenhum agente disponível"
+          },
+          "403": {
+            "description": "Sem permissão"
+          }
+        }
+      }
+    },
+    "/api/auth/register": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Registrar novo usuário",
+        "description": "Cria uma nova conta de usuário no sistema",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "email",
+                  "password"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "example": "João Silva"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "example": "joao@example.com"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password",
+                    "minLength": 6,
+                    "example": "senha123"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "agent",
+                      "admin"
+                    ],
+                    "default": "agent",
+                    "example": "agent"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Usuário registrado com sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "token": {
+                      "type": "string",
+                      "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    },
+                    "user": {
+                      "$ref": "#/components/schemas/User"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos ou email já cadastrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Muitas tentativas, tente novamente mais tarde"
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Fazer login",
+        "description": "Autentica um usuário e retorna um token JWT",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email",
+                  "password"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "example": "joao@example.com"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password",
+                    "example": "senha123"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login realizado com sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "token": {
+                      "type": "string",
+                      "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    },
+                    "user": {
+                      "$ref": "#/components/schemas/User"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Email ou senha incorretos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Muitas tentativas, tente novamente mais tarde"
+          }
+        }
+      }
+    },
+    "/api/auth/profile": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Obter perfil do usuário",
+        "description": "Retorna os dados do perfil do usuário autenticado",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dados do perfil obtidos com sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "user": {
+                      "$ref": "#/components/schemas/User"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autorizado - Token inválido ou ausente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Atualizar perfil do usuário",
+        "description": "Atualiza os dados do perfil do usuário autenticado",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "example": "João Silva Jr."
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "example": "joao.jr@example.com"
+                  },
+                  "avatar": {
+                    "type": "string",
+                    "example": "https://example.com/avatar.jpg"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Perfil atualizado com sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "user": {
+                      "$ref": "#/components/schemas/User"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autorizado"
+          }
+        }
+      }
+    },
+    "/api/auth/change-password": {
+      "patch": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Alterar senha",
+        "description": "Altera a senha do usuário autenticado",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "currentPassword",
+                  "newPassword"
+                ],
+                "properties": {
+                  "currentPassword": {
+                    "type": "string",
+                    "format": "password",
+                    "example": "senha123"
+                  },
+                  "newPassword": {
+                    "type": "string",
+                    "format": "password",
+                    "minLength": 6,
+                    "example": "novaSenha456"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Senha alterada com sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Senha alterada com sucesso"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Senha atual incorreta ou nova senha inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autorizado"
+          }
+        }
+      }
+    },
+    "/api/chat/conversations": {
+      "post": {
+        "tags": [
+          "Chat"
+        ],
+        "summary": "Criar nova conversa",
+        "description": "Cria uma nova conversa de chat. Clientes podem criar conversas que entram na fila de atendimento.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "subject": {
+                    "type": "string",
+                    "example": "Dúvida sobre produto"
+                  },
+                  "initialMessage": {
+                    "type": "string",
+                    "example": "Olá, gostaria de saber mais sobre o produto X"
+                  },
+                  "department": {
+                    "type": "string",
+                    "example": "vendas"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Conversa criada com sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Chat"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos"
+          },
+          "401": {
+            "description": "Não autorizado"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Chat"
+        ],
+        "summary": "Listar conversas",
+        "description": "Retorna lista de conversas do usuário. Clientes veem apenas suas próprias conversas, agentes veem conversas atribuídas ou na fila.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "waiting",
+                "active",
+                "closed"
+              ]
+            },
+            "description": "Filtrar por status da conversa"
+          },
+          {
+            "in": "query",
+            "name": "assignedAgentId",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filtrar por ID do agente atribuído"
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "Número da página"
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            },
+            "description": "Itens por página"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de conversas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Chat"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autorizado"
+          }
+        }
+      }
+    },
+    "/api/chat/conversations/{id}/messages": {
+      "get": {
+        "tags": [
+          "Messages"
+        ],
+        "summary": "Buscar mensagens de uma conversa",
+        "description": "Retorna todas as mensagens de uma conversa específica",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID da conversa"
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "Número da página"
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 50
+            },
+            "description": "Mensagens por página"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de mensagens",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Message"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ID inválido"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "404": {
+            "description": "Conversa não encontrada"
+          }
+        }
+      }
+    },
+    "/api/chat/conversations/{id}/assign": {
+      "patch": {
+        "tags": [
+          "Chat"
+        ],
+        "summary": "Atribuir conversa a um agente",
+        "description": "Atribui uma conversa a um agente específico (Apenas administradores)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID da conversa"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "agentId"
+                ],
+                "properties": {
+                  "agentId": {
+                    "type": "string",
+                    "example": "60d0fe4f5311236168a109ca"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Conversa atribuída com sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Chat"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos"
+          },
+          "403": {
+            "description": "Sem permissão - Apenas administradores"
+          },
+          "404": {
+            "description": "Conversa ou agente não encontrado"
+          }
+        }
+      }
+    },
+    "/api/chat/conversations/{id}/accept": {
+      "patch": {
+        "tags": [
+          "Chat"
+        ],
+        "summary": "Aceitar conversa",
+        "description": "Agente aceita uma conversa da fila de atendimento",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID da conversa"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversa aceita com sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Chat"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Erro ao aceitar conversa"
+          },
+          "403": {
+            "description": "Sem permissão - Apenas agentes e administradores"
+          },
+          "404": {
+            "description": "Conversa não encontrada"
+          }
+        }
+      }
+    },
+    "/api/chat/conversations/{id}/close": {
+      "patch": {
+        "tags": [
+          "Chat"
+        ],
+        "summary": "Fechar conversa",
+        "description": "Encerra uma conversa de atendimento",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID da conversa"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversa fechada com sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Chat"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Conversa já está encerrada"
+          },
+          "404": {
+            "description": "Conversa não encontrada"
+          }
+        }
+      }
+    },
+    "/api/chat/conversations/{id}/rate": {
+      "post": {
+        "tags": [
+          "Chat"
+        ],
+        "summary": "Avaliar conversa",
+        "description": "Cliente avalia o atendimento recebido",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID da conversa"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "rating"
+                ],
+                "properties": {
+                  "rating": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5,
+                    "example": 5
+                  },
+                  "comment": {
+                    "type": "string",
+                    "example": "Atendimento excelente!"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Avaliação registrada com sucesso"
+          },
+          "403": {
+            "description": "Apenas o cliente da conversa pode avaliar"
+          },
+          "404": {
+            "description": "Conversa não encontrada"
+          }
+        }
+      }
+    },
+    "/api/files/upload": {
+      "post": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Upload de arquivos",
+        "description": "Faz upload de até 5 arquivos para uma conversa. Arquivos são armazenados no AWS S3.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "files",
+                  "conversationId"
+                ],
+                "properties": {
+                  "files": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    },
+                    "maxItems": 5,
+                    "description": "Arquivos para upload (máximo 5)"
+                  },
+                  "conversationId": {
+                    "type": "string",
+                    "description": "ID da conversa associada",
+                    "example": "60d0fe4f5311236168a109ca"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Upload realizado com sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "files": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "_id": {
+                            "type": "string"
+                          },
+                          "filename": {
+                            "type": "string"
+                          },
+                          "originalName": {
+                            "type": "string"
+                          },
+                          "mimetype": {
+                            "type": "string"
+                          },
+                          "size": {
+                            "type": "number"
+                          },
+                          "s3Key": {
+                            "type": "string"
+                          },
+                          "s3Bucket": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Erro no upload ou arquivo inválido"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "413": {
+            "description": "Arquivo muito grande (limite: 10MB)"
+          }
+        }
+      }
+    },
+    "/api/files/conversation/{conversationId}": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Listar arquivos de uma conversa",
+        "description": "Retorna todos os arquivos associados a uma conversa específica",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID da conversa",
+            "example": "60d0fe4f5311236168a109ca"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de arquivos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "_id": {
+                        "type": "string"
+                      },
+                      "filename": {
+                        "type": "string"
+                      },
+                      "originalName": {
+                        "type": "string"
+                      },
+                      "mimetype": {
+                        "type": "string"
+                      },
+                      "size": {
+                        "type": "number"
+                      },
+                      "url": {
+                        "type": "string"
+                      },
+                      "uploadedBy": {
+                        "type": "object",
+                        "properties": {
+                          "_id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "404": {
+            "description": "Conversa não encontrada"
+          }
+        }
+      }
+    },
+    "/api/files/download/{fileId}": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Baixar arquivo",
+        "description": "Retorna URL assinada para download do arquivo do S3",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "fileId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID do arquivo",
+            "example": "60d0fe4f5311236168a109cb"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "URL de download gerada com sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "downloadUrl": {
+                      "type": "string",
+                      "description": "URL assinada temporária para download (válida por 1 hora)",
+                      "example": "https://s3.amazonaws.com/bucket/file?signature=..."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "404": {
+            "description": "Arquivo não encontrado"
+          }
+        }
+      }
+    },
+    "/api/files/{fileId}": {
+      "delete": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Excluir arquivo",
+        "description": "Remove um arquivo do S3 e do banco de dados",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "fileId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID do arquivo",
+            "example": "60d0fe4f5311236168a109cb"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Arquivo excluído com sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Arquivo excluído com sucesso"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Sem permissão para excluir este arquivo"
+          },
+          "404": {
+            "description": "Arquivo não encontrado"
+          }
+        }
+      }
+    },
+    "/api/history/conversations": {
+      "get": {
+        "tags": [
+          "History"
+        ],
+        "summary": "Buscar histórico de conversas",
+        "description": "Retorna histórico de conversas com filtros opcionais",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "waiting",
+                "active",
+                "closed"
+              ]
+            },
+            "description": "Filtrar por status"
+          },
+          {
+            "in": "query",
+            "name": "agentId",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filtrar por ID do agente"
+          },
+          {
+            "in": "query",
+            "name": "clientId",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filtrar por ID do cliente"
+          },
+          {
+            "in": "query",
+            "name": "startDate",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Data inicial (formato YYYY-MM-DD)"
+          },
+          {
+            "in": "query",
+            "name": "endDate",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Data final (formato YYYY-MM-DD)"
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "Número da página"
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            },
+            "description": "Itens por página"
+          },
+          {
+            "in": "query",
+            "name": "sortBy",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "createdAt",
+                "closedAt",
+                "rating"
+              ],
+              "default": "createdAt"
+            },
+            "description": "Campo para ordenação"
+          },
+          {
+            "in": "query",
+            "name": "order",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            },
+            "description": "Ordem de classificação"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Histórico de conversas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "conversations": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Chat"
+                      }
+                    },
+                    "pagination": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer"
+                        },
+                        "page": {
+                          "type": "integer"
+                        },
+                        "limit": {
+                          "type": "integer"
+                        },
+                        "pages": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autorizado"
+          }
+        }
+      }
+    },
+    "/api/history/conversations/{conversationId}": {
+      "get": {
+        "tags": [
+          "History"
+        ],
+        "summary": "Obter detalhes da conversa",
+        "description": "Retorna detalhes completos de uma conversa específica, incluindo mensagens",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID da conversa"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalhes da conversa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "conversation": {
+                      "$ref": "#/components/schemas/Chat"
+                    },
+                    "messages": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Message"
+                      }
+                    },
+                    "attachments": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "404": {
+            "description": "Conversa não encontrada"
+          }
+        }
+      }
+    },
+    "/api/history/search": {
+      "get": {
+        "tags": [
+          "History"
+        ],
+        "summary": "Buscar conversas",
+        "description": "Busca conversas por texto nas mensagens ou metadados",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Termo de busca",
+            "example": "problema no pagamento"
+          },
+          {
+            "in": "query",
+            "name": "searchIn",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "messages",
+                  "subject",
+                  "customer"
+                ]
+              },
+              "default": [
+                "messages",
+                "subject"
+              ]
+            },
+            "description": "Campos onde buscar"
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultados da busca",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "conversation": {
+                            "$ref": "#/components/schemas/Chat"
+                          },
+                          "matches": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "message": {
+                                  "type": "string"
+                                },
+                                "timestamp": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parâmetros inválidos"
+          },
+          "401": {
+            "description": "Não autorizado"
+          }
+        }
+      }
+    },
+    "/api/history/export/{conversationId}/csv": {
+      "get": {
+        "tags": [
+          "History"
+        ],
+        "summary": "Exportar conversa em CSV",
+        "description": "Exporta uma conversa e suas mensagens em formato CSV",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID da conversa"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Arquivo CSV",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string",
+                  "example": "attachment; filename=\"conversa_60d0fe4f5311236168a109ca.csv\""
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "404": {
+            "description": "Conversa não encontrada"
+          }
+        }
+      }
+    },
+    "/api/history/export/{conversationId}/pdf": {
+      "get": {
+        "tags": [
+          "History"
+        ],
+        "summary": "Exportar conversa em PDF",
+        "description": "Exporta uma conversa e suas mensagens em formato PDF",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID da conversa"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Arquivo PDF",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string",
+                  "example": "attachment; filename=\"conversa_60d0fe4f5311236168a109ca.pdf\""
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "404": {
+            "description": "Conversa não encontrada"
+          }
+        }
+      }
+    },
+    "/api/history/analytics": {
+      "get": {
+        "tags": [
+          "History"
+        ],
+        "summary": "Obter análise de conversas",
+        "description": "Retorna estatísticas e análises das conversas",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "period",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "today",
+                "week",
+                "month",
+                "year",
+                "custom"
+              ],
+              "default": "month"
+            },
+            "description": "Período de análise"
+          },
+          {
+            "in": "query",
+            "name": "startDate",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Data inicial (para período custom)"
+          },
+          {
+            "in": "query",
+            "name": "endDate",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Data final (para período custom)"
+          },
+          {
+            "in": "query",
+            "name": "groupBy",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "day",
+                "week",
+                "month"
+              ],
+              "default": "day"
+            },
+            "description": "Agrupar dados por"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dados analíticos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "summary": {
+                      "type": "object",
+                      "properties": {
+                        "totalConversations": {
+                          "type": "integer"
+                        },
+                        "completedConversations": {
+                          "type": "integer"
+                        },
+                        "avgResolutionTime": {
+                          "type": "number",
+                          "description": "Tempo médio de resolução em minutos"
+                        },
+                        "avgMessagesPerConversation": {
+                          "type": "number"
+                        },
+                        "avgSatisfaction": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 5
+                        }
+                      }
+                    },
+                    "timeline": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "date": {
+                            "type": "string",
+                            "format": "date"
+                          },
+                          "conversations": {
+                            "type": "integer"
+                          },
+                          "messages": {
+                            "type": "integer"
+                          },
+                          "avgResponseTime": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    },
+                    "topAgents": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "agentId": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "totalConversations": {
+                            "type": "integer"
+                          },
+                          "avgSatisfaction": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    },
+                    "peakHours": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "hour": {
+                            "type": "integer"
+                          },
+                          "conversations": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Sem permissão - Apenas administradores"
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Verificar status do servidor",
+        "description": "Retorna o status de saúde do servidor",
+        "responses": {
+          "200": {
+            "description": "Servidor funcionando corretamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Servidor funcionando"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "environment": {
+                      "type": "string",
+                      "example": "production"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

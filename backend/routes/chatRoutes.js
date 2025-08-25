@@ -8,7 +8,43 @@ const Conversation = require('../models/Conversation');
 // Aplicar middleware de autenticação para todas as rotas
 router.use(authMiddleware);
 
-// Criar nova conversa - Clientes podem criar conversas
+/**
+ * @swagger
+ * /api/chat/conversations:
+ *   post:
+ *     tags: [Chat]
+ *     summary: Criar nova conversa
+ *     description: Cria uma nova conversa de chat. Clientes podem criar conversas que entram na fila de atendimento.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               subject:
+ *                 type: string
+ *                 example: Dúvida sobre produto
+ *               initialMessage:
+ *                 type: string
+ *                 example: Olá, gostaria de saber mais sobre o produto X
+ *               department:
+ *                 type: string
+ *                 example: vendas
+ *     responses:
+ *       201:
+ *         description: Conversa criada com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Chat'
+ *       400:
+ *         description: Dados inválidos
+ *       401:
+ *         description: Não autorizado
+ */
 router.post('/conversations', async (req, res) => {
   try {
     const { initialMessage, ...conversationBody } = req.body;
@@ -53,7 +89,51 @@ router.post('/conversations', async (req, res) => {
   }
 });
 
-// Listar conversas
+/**
+ * @swagger
+ * /api/chat/conversations:
+ *   get:
+ *     tags: [Chat]
+ *     summary: Listar conversas
+ *     description: Retorna lista de conversas do usuário. Clientes veem apenas suas próprias conversas, agentes veem conversas atribuídas ou na fila.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [waiting, active, closed]
+ *         description: Filtrar por status da conversa
+ *       - in: query
+ *         name: assignedAgentId
+ *         schema:
+ *           type: string
+ *         description: Filtrar por ID do agente atribuído
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Número da página
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Itens por página
+ *     responses:
+ *       200:
+ *         description: Lista de conversas
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Chat'
+ *       401:
+ *         description: Não autorizado
+ */
 router.get('/conversations', async (req, res) => {
   try {
     const { status, assignedAgentId } = req.query;
@@ -75,7 +155,50 @@ router.get('/conversations', async (req, res) => {
   }
 });
 
-// Buscar mensagens de uma conversa
+/**
+ * @swagger
+ * /api/chat/conversations/{id}/messages:
+ *   get:
+ *     tags: [Messages]
+ *     summary: Buscar mensagens de uma conversa
+ *     description: Retorna todas as mensagens de uma conversa específica
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID da conversa
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Número da página
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *         description: Mensagens por página
+ *     responses:
+ *       200:
+ *         description: Lista de mensagens
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Message'
+ *       400:
+ *         description: ID inválido
+ *       401:
+ *         description: Não autorizado
+ *       404:
+ *         description: Conversa não encontrada
+ */
 router.get('/conversations/:id/messages', async (req, res) => {
   try {
     const messages = await chatService.getConversationMessages(req.params.id);
@@ -85,7 +208,48 @@ router.get('/conversations/:id/messages', async (req, res) => {
   }
 });
 
-// Atribuir conversa a um agente - Apenas admin pode atribuir
+/**
+ * @swagger
+ * /api/chat/conversations/{id}/assign:
+ *   patch:
+ *     tags: [Chat]
+ *     summary: Atribuir conversa a um agente
+ *     description: Atribui uma conversa a um agente específico (Apenas administradores)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID da conversa
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - agentId
+ *             properties:
+ *               agentId:
+ *                 type: string
+ *                 example: 60d0fe4f5311236168a109ca
+ *     responses:
+ *       200:
+ *         description: Conversa atribuída com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Chat'
+ *       400:
+ *         description: Dados inválidos
+ *       403:
+ *         description: Sem permissão - Apenas administradores
+ *       404:
+ *         description: Conversa ou agente não encontrado
+ */
 router.patch('/conversations/:id/assign', requireRole('admin'), async (req, res) => {
   try {
     const { agentId } = req.body;
@@ -130,7 +294,36 @@ router.patch('/conversations/:id/assign', requireRole('admin'), async (req, res)
   }
 });
 
-// Aceitar conversa - Apenas agentes e admin
+/**
+ * @swagger
+ * /api/chat/conversations/{id}/accept:
+ *   patch:
+ *     tags: [Chat]
+ *     summary: Aceitar conversa
+ *     description: Agente aceita uma conversa da fila de atendimento
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID da conversa
+ *     responses:
+ *       200:
+ *         description: Conversa aceita com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Chat'
+ *       400:
+ *         description: Erro ao aceitar conversa
+ *       403:
+ *         description: Sem permissão - Apenas agentes e administradores
+ *       404:
+ *         description: Conversa não encontrada
+ */
 router.patch('/conversations/:id/accept', async (req, res) => {
   try {
     console.log('📌 Accept route hit');
@@ -184,7 +377,34 @@ router.patch('/conversations/:id/accept', async (req, res) => {
   }
 });
 
-// Fechar conversa - Todos podem fechar (cliente com confirmação no frontend)
+/**
+ * @swagger
+ * /api/chat/conversations/{id}/close:
+ *   patch:
+ *     tags: [Chat]
+ *     summary: Fechar conversa
+ *     description: Encerra uma conversa de atendimento
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID da conversa
+ *     responses:
+ *       200:
+ *         description: Conversa fechada com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Chat'
+ *       400:
+ *         description: Conversa já está encerrada
+ *       404:
+ *         description: Conversa não encontrada
+ */
 router.patch('/conversations/:id/close', async (req, res) => {
   try {
     // Verificar se a conversa já está fechada
@@ -213,7 +433,47 @@ router.patch('/conversations/:id/close', async (req, res) => {
   }
 });
 
-// Avaliar conversa - Apenas clientes podem avaliar
+/**
+ * @swagger
+ * /api/chat/conversations/{id}/rate:
+ *   post:
+ *     tags: [Chat]
+ *     summary: Avaliar conversa
+ *     description: Cliente avalia o atendimento recebido
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID da conversa
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - rating
+ *             properties:
+ *               rating:
+ *                 type: integer
+ *                 minimum: 1
+ *                 maximum: 5
+ *                 example: 5
+ *               comment:
+ *                 type: string
+ *                 example: Atendimento excelente!
+ *     responses:
+ *       200:
+ *         description: Avaliação registrada com sucesso
+ *       403:
+ *         description: Apenas o cliente da conversa pode avaliar
+ *       404:
+ *         description: Conversa não encontrada
+ */
 router.post('/conversations/:id/rate', async (req, res) => {
   try {
     const { rating, comment } = req.body;
