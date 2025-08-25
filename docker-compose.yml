@@ -1,23 +1,7 @@
 version: '3.8'
 
 services:
-  # MongoDB
-  mongodb:
-    image: mongo:7
-    container_name: chat-mongodb
-    restart: unless-stopped
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-password}
-      MONGO_INITDB_DATABASE: chat-atendimento
-    volumes:
-      - mongodb_data:/data/db
-    ports:
-      - "27017:27017"
-    networks:
-      - chat-network
-
-  # Backend API
+  # Backend API (usando MongoDB Atlas)
   backend:
     build:
       context: ./backend
@@ -27,16 +11,20 @@ services:
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: 5000
-      MONGODB_URI: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-password}@mongodb:27017/chat-atendimento?authSource=admin
+      # MongoDB Atlas connection string
+      MONGODB_URI: ${MONGODB_URI}
       JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key}
       JWT_EXPIRE: 7d
       CLIENT_URL: ${CLIENT_URL:-https://suporte.brsi.net.br}
+      # AWS S3 Configuration
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
     ports:
       - "5000:5000"
     volumes:
       - ./backend/uploads:/app/uploads
-    depends_on:
-      - mongodb
     networks:
       - chat-network
 
@@ -60,6 +48,3 @@ services:
 networks:
   chat-network:
     driver: bridge
-
-volumes:
-  mongodb_data:
