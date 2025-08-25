@@ -56,7 +56,7 @@ if (useS3) {
   storage = multerS3({
     s3: s3Client,
     bucket: process.env.S3_BUCKET_NAME,
-    acl: 'public-read', // Permitir leitura pública
+    // acl removido - buckets modernos usam políticas de bucket
     contentType: multerS3.AUTO_CONTENT_TYPE,
     metadata: function (req, file, cb) {
       cb(null, {

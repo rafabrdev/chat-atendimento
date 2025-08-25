@@ -180,7 +180,7 @@ const agentSchema = new mongoose.Schema({
 });
 
 // Indexes for performance
-agentSchema.index({ user: 1 });
+// user index removido - já criado automaticamente por unique: true
 agentSchema.index({ status: 1, 'availability.isAvailable': 1 });
 agentSchema.index({ 'performance.averageRating': -1 });
 agentSchema.index({ 'availability.currentActiveChats': 1 });
