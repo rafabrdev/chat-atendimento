@@ -69,7 +69,7 @@ const resolveTenant = async (req, res, next) => {
         resolvedBy = 'header-id';
       } else if (headerTenantKey) {
         console.log('[TenantMiddleware] Tentando resolver por header x-tenant-key:', headerTenantKey);
-        tenant = await getCachedTenantBySlug(headerTenantKey);
+        tenant = await getCachedTenantByKey(headerTenantKey);
         resolvedBy = 'header-key';
       }
     }
@@ -86,7 +86,8 @@ const resolveTenant = async (req, res, next) => {
         // Ignorar www, api, localhost
         if (subdomain && !['www', 'api', 'localhost'].includes(subdomain)) {
           console.log('[TenantMiddleware] Tentando resolver por subdomínio:', subdomain);
-          tenant = await getCachedTenantBySlug(subdomain);
+          // Usar key para subdomínio
+          tenant = await getCachedTenantByKey(subdomain);
           
           if (tenant) {
             resolvedBy = 'subdomain';
@@ -111,14 +112,15 @@ const resolveTenant = async (req, res, next) => {
     // 4. Query parameter (útil para desenvolvimento)
     if (!tenant && req.query.tenant) {
       console.log('[TenantMiddleware] Tentando resolver por query parameter:', req.query.tenant);
-      tenant = await getCachedTenantBySlug(req.query.tenant);
+      // Tentar por key primeiro
+      tenant = await getCachedTenantByKey(req.query.tenant);
       resolvedBy = 'query-param';
     }
 
     // 5. Fallback para tenant "default" (durante migração)
     if (!tenant && shouldUseFallback(req)) {
       console.log('[TenantMiddleware] Usando fallback para tenant default');
-      tenant = await getCachedTenantBySlug('default');
+      tenant = await getCachedTenantByKey('default');
       resolvedBy = 'fallback-default';
     }
 
@@ -143,9 +145,10 @@ const resolveTenant = async (req, res, next) => {
       // Anexar tenant ao request
       req.tenant = tenant;
       req.tenantId = tenant._id;
+      req.tenantKey = tenant.key;
       req.resolvedBy = resolvedBy;
       
-      console.log(`[TenantMiddleware] ✅ Tenant resolvido: ${tenant.companyName} (${tenant.slug}) via ${resolvedBy}`);
+      console.log(`[TenantMiddleware] ✅ Tenant resolvido: ${tenant.companyName} (key: ${tenant.key}) via ${resolvedBy}`);
     } else if (requiresTenant(req)) {
       // Se a rota requer tenant e não foi encontrado
       console.log('[TenantMiddleware] ❌ Tenant obrigatório não encontrado');
@@ -310,9 +313,40 @@ async function getCachedTenantBySlug(slug) {
   let tenant = tenantCache.get(cacheKey);
   
   if (!tenant) {
-    tenant = await Tenant.findOne({ slug: slug.toLowerCase() });
+    // Tentar primeiro por key, depois por slug (para compatibilidade)
+    tenant = await Tenant.findOne({ 
+      $or: [
+        { key: slug.toLowerCase() },
+        { slug: slug.toLowerCase() }
+      ]
+    });
     if (tenant) {
       tenantCache.set(cacheKey, tenant);
+      // Adicionar também no cache pela key
+      if (tenant.key) {
+        tenantCache.set(`key:${tenant.key}`, tenant);
+      }
+    }
+  }
+  
+  return tenant;
+}
+
+// Nova função específica para buscar por key
+async function getCachedTenantByKey(key) {
+  if (!key) return null;
+  
+  const cacheKey = `key:${key}`;
+  let tenant = tenantCache.get(cacheKey);
+  
+  if (!tenant) {
+    tenant = await Tenant.findOne({ key: key.toLowerCase() });
+    if (tenant) {
+      tenantCache.set(cacheKey, tenant);
+      // Adicionar também no cache pelo slug
+      if (tenant.slug) {
+        tenantCache.set(`slug:${tenant.slug}`, tenant);
+      }
     }
   }
   

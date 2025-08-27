@@ -71,7 +71,13 @@ class SocketTenantMiddleware {
 
       // 3. Tenant por key/slug
       if (!tenant && tenantKey) {
-        tenant = await Tenant.findOne({ slug: tenantKey });
+        // Buscar primeiro por key, depois por slug para compatibilidade
+        tenant = await Tenant.findOne({ 
+          $or: [
+            { key: tenantKey.toLowerCase() },
+            { slug: tenantKey.toLowerCase() }
+          ]
+        });
         resolvedBy = 'handshake-key';
         
         // Validar acesso
@@ -83,7 +89,7 @@ class SocketTenantMiddleware {
 
       // 4. Fallback para tenant default
       if (!tenant && process.env.USE_DEFAULT_TENANT_FALLBACK === 'true') {
-        tenant = await Tenant.findOne({ slug: 'default' });
+        tenant = await Tenant.findOne({ key: 'default' });
         resolvedBy = 'fallback-default';
       }
 
@@ -97,6 +103,7 @@ class SocketTenantMiddleware {
         // Anexar informações ao socket
         socket.tenant = tenant;
         socket.tenantId = tenant._id.toString();
+        socket.tenantKey = tenant.key;
         socket.user = user;
         socket.userId = user._id.toString();
         socket.userRole = user.role;
@@ -105,7 +112,7 @@ class SocketTenantMiddleware {
         // Registrar conexão
         this.registerConnection(socket);
 
-        console.log(`[SocketTenant] ✅ Conexão autenticada: User ${user.email} | Tenant ${tenant.slug} (${resolvedBy})`);
+        console.log(`[SocketTenant] ✅ Conexão autenticada: User ${user.email} | Tenant ${tenant.key || tenant.slug} (${resolvedBy})`);
         
         next();
       } else if (user.role === 'master') {
@@ -157,7 +164,7 @@ class SocketTenantMiddleware {
       socket.join(`tenant:${tenantId}:clients`);
     }
 
-    console.log(`[SocketTenant] Socket ${socket.id} registrado no tenant ${socket.tenant.slug}`);
+    console.log(`[SocketTenant] Socket ${socket.id} registrado no tenant ${socket.tenant.key || socket.tenant.slug}`);
   }
 
   /**
