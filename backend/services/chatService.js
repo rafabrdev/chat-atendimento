@@ -3,6 +3,7 @@ const Message = require('../models/Message');
 const QueueEntry = require('../models/QueueEntry');
 const User = require('../models/User');
 const lockService = require('./lockService');
+const notificationService = require('./notificationService');
 
 class ChatService {
   async createConversation(data) {
@@ -29,6 +30,43 @@ class ChatService {
 
       // Popular os dados do cliente
       await conversation.populate('client', 'name email company');
+      
+      // Notificar agentes sobre nova conversa na fila
+      try {
+        const agents = await User.find({
+          tenantId: data.tenantId,
+          role: { $in: ['agent', 'admin'] },
+          active: true,
+          status: 'online'
+        });
+        
+        const agentIds = agents.map(a => a._id);
+        
+        if (agentIds.length > 0) {
+          await notificationService.notifyMultiple(agentIds, {
+            tenantId: data.tenantId,
+            type: 'chat_new',
+            priority: data.priority || 'normal',
+            title: 'Nova conversa na fila',
+            message: `${conversation.client?.name || 'Cliente'} iniciou uma conversa`,
+            data: {
+              conversationId: conversation._id,
+              clientName: conversation.client?.name,
+              department: conversation.department,
+              subject: conversation.subject
+            },
+            actionUrl: `/chat/${conversation._id}`,
+            icon: 'chat',
+            references: {
+              conversation: conversation._id,
+              user: data.clientId
+            }
+          });
+        }
+      } catch (error) {
+        console.error('Erro ao enviar notificações:', error);
+      }
+      
       return conversation;
     } catch (error) {
       console.error('Error in createConversation:', error);
@@ -395,6 +433,81 @@ class ChatService {
 
       // Log de sucesso
       console.log(`✅ Conversa ${conversationId} aceita com sucesso pelo agente ${agent.name}`);
+      
+      // Notificar cliente e agente
+      try {
+        // Notificar cliente
+        if (conversation.client?._id) {
+          await notificationService.notify(conversation.client._id, {
+            tenantId: conversation.tenantId,
+            type: 'chat_assigned',
+            priority: 'high',
+            title: 'Agente atribuído ao seu chat',
+            message: `${agent.name} está atendendo sua conversa`,
+            data: {
+              conversationId: conversation._id,
+              agentName: agent.name,
+              agentId: agent._id
+            },
+            actionUrl: `/chat/${conversation._id}`,
+            icon: 'user-check',
+            color: '#28a745',
+            sender: agentId,
+            references: {
+              conversation: conversation._id,
+              user: agentId
+            }
+          });
+        }
+        
+        // Notificar o próprio agente
+        await notificationService.notify(agentId, {
+          tenantId: conversation.tenantId || tenantId,
+          type: 'chat_assigned',
+          priority: 'normal',
+          title: 'Chat aceito com sucesso',
+          message: `Você está atendendo ${conversation.client?.name || 'Cliente'}`,
+          data: {
+            conversationId: conversation._id,
+            clientName: conversation.client?.name,
+            clientEmail: conversation.client?.email
+          },
+          actionUrl: `/chat/${conversation._id}`,
+          icon: 'chat',
+          color: '#007bff',
+          references: {
+            conversation: conversation._id,
+            user: conversation.client?._id
+          }
+        });
+        
+        // Notificar outros agentes para atualizar a fila
+        const otherAgents = await User.find({
+          tenantId: conversation.tenantId || tenantId,
+          role: { $in: ['agent', 'admin'] },
+          _id: { $ne: agentId },
+          active: true
+        });
+        
+        if (otherAgents.length > 0) {
+          const otherAgentIds = otherAgents.map(a => a._id);
+          await notificationService.notifyMultiple(otherAgentIds, {
+            tenantId: conversation.tenantId || tenantId,
+            type: 'chat_assigned',
+            priority: 'low',
+            title: 'Chat removido da fila',
+            message: `${conversation.client?.name || 'Cliente'} está sendo atendido por ${agent.name}`,
+            data: {
+              conversationId: conversation._id,
+              agentName: agent.name
+            },
+            icon: 'info',
+            color: '#6c757d'
+          });
+        }
+      } catch (error) {
+        console.error('Erro ao enviar notificações de accept:', error);
+      }
 
       return conversation;
       

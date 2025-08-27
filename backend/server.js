@@ -30,6 +30,7 @@ const corsRoutes = require('./routes/cors');
 const monitoringRoutes = require('./routes/monitoringRoutes');
 const tenantsRoutes = require('./routes/tenants');
 const systemMonitoringRoutes = require('./routes/monitoring'); // Nova rota de monitoramento de cache/Redis
+const notificationRoutes = require('./routes/notifications'); // Rotas de notificações
 
 const app = express();
 const server = http.createServer(app);
@@ -210,6 +211,7 @@ app.use('/api/stripe', stripeRoutes); // Rotas do Stripe (pagamentos)
 app.use('/api/cors', corsRoutes); // Rotas de gerenciamento CORS
 app.use('/api/monitoring', monitoringRoutes); // Rotas de monitoramento e observabilidade
 app.use('/api/system', systemMonitoringRoutes); // Rotas de monitoramento de cache e Redis
+app.use('/api/notifications', notificationRoutes); // Rotas de notificações
 app.use('/api/tenants', tenantsRoutes); // Rotas públicas de tenants
 
 // Rota de compra (página HTML)
@@ -229,6 +231,10 @@ app.use(errorHandler);
 // Socket.io connection handling com tenant
 const SocketHandlers = require('./socket/socketHandlers');
 const socketHandlers = new SocketHandlers(io, socketTenantMiddleware);
+
+// Inicializar serviço de notificações com Socket.IO
+const notificationService = require('./services/notificationService');
+notificationService.initialize(io);
 
 // Middleware de autenticação Socket.IO
 io.use(async (socket, next) => {
