@@ -81,11 +81,50 @@ const authenticateJWT = async (req, res, next) => {
       const userTenantId = user.tenantId?._id || user.tenantId || decoded.tenantId;
       
       if (!userTenantId) {
-        return res.status(403).json({
-          success: false,
-          error: 'Usuário sem tenant associado',
-          code: 'NO_TENANT'
-        });
+        // Suporte para tokens legacy (sem tenantId)
+        if (!decoded.tokenVersion || decoded.tokenVersion < 2) {
+          // Token legacy - buscar tenant padrão do usuário
+          console.log(`[Auth] Legacy token detected for user ${user.email}`);
+          
+          // Se usuário tem tenantId no banco mas não no token, usar do banco
+          if (user.tenantId) {
+            console.log(`[Auth] Using tenant from database for legacy token`);
+          } else {
+            // Usuário sem tenant - período de migração
+            if (process.env.ALLOW_LEGACY_TOKENS === 'true') {
+              console.warn(`[Auth] User ${user.email} without tenant - migration mode`);
+              // Continuar sem tenant por enquanto
+            } else {
+              return res.status(403).json({
+                success: false,
+                error: 'Token inválido. Por favor, faça login novamente.',
+                code: 'LEGACY_TOKEN_EXPIRED'
+              });
+            }
+          }
+        } else {
+          // Token novo mas sem tenant
+          return res.status(403).json({
+            success: false,
+            error: 'Usuário sem tenant associado',
+            code: 'NO_TENANT'
+          });
+        }
+      }
+      
+      // Validar tenant mismatch para tokens novos
+      if (decoded.tokenVersion >= 2 && decoded.tenantId) {
+        const tokenTenantId = decoded.tenantId.toString();
+        const actualTenantId = (user.tenantId?._id || user.tenantId || '').toString();
+        
+        if (tokenTenantId && actualTenantId && tokenTenantId !== actualTenantId) {
+          console.error(`[Auth] Tenant mismatch! Token: ${tokenTenantId}, User: ${actualTenantId}`);
+          return res.status(403).json({
+            success: false,
+            error: 'Token inválido para este tenant',
+            code: 'TENANT_MISMATCH'
+          });
+        }
       }
 
       // Se tenantId é string (não populado), buscar tenant
@@ -312,19 +351,51 @@ const requireModule = (moduleName) => {
  * @returns {string} Token JWT
  */
 const generateToken = (user) => {
+  // Determinar roles e scopes baseado no role do usuário
+  const roles = [];
+  const scopes = [];
+  
+  switch(user.role) {
+    case 'master':
+      roles.push('super-admin', 'tenant-admin', 'agent');
+      scopes.push('*'); // Acesso total
+      break;
+    case 'admin':
+      roles.push('tenant-admin', 'agent');
+      scopes.push('tenant:manage', 'users:manage', 'chat:manage', 'settings:manage');
+      break;
+    case 'agent':
+      roles.push('agent');
+      scopes.push('chat:manage', 'users:read', 'settings:read');
+      break;
+    case 'client':
+      roles.push('client');
+      scopes.push('chat:participate', 'profile:manage');
+      break;
+    default:
+      roles.push('client');
+      scopes.push('chat:participate');
+  }
+  
   const payload = {
     id: user._id,
     email: user.email,
     role: user.role,
+    roles: roles, // Array de roles para validação granular
+    scopes: scopes, // Permissões específicas
     tenantId: user.tenantId?._id || user.tenantId || null,
     company: user.company,
-    name: user.name
+    name: user.name,
+    // Adicionar timestamp de geração para auditoria
+    iat: Math.floor(Date.now() / 1000),
+    // Adicionar versão do token para facilitar migrações futuras
+    tokenVersion: 2
   };
   
   // Se o tenant está populado, adicionar informações extras
   if (user.tenantId && typeof user.tenantId === 'object') {
-    payload.tenantSlug = user.tenantId.slug;
-    payload.tenantName = user.tenantId.companyName;
+    payload.tenantSlug = user.tenantId.slug || user.tenantId.key;
+    payload.tenantName = user.tenantId.companyName || user.tenantId.name;
   }
   
   const options = {
