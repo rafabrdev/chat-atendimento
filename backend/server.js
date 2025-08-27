@@ -26,6 +26,7 @@ const stripeRoutes = require('./routes/stripe');
 const buyRoutes = require('./routes/buy');
 const corsRoutes = require('./routes/cors');
 const monitoringRoutes = require('./routes/monitoringRoutes');
+const tenantsRoutes = require('./routes/tenants');
 
 const app = express();
 const server = http.createServer(app);
@@ -152,6 +153,7 @@ app.use('/api/master', masterRoutes); // Rotas master (sem tenant)
 app.use('/api/stripe', stripeRoutes); // Rotas do Stripe (pagamentos)
 app.use('/api/cors', corsRoutes); // Rotas de gerenciamento CORS
 app.use('/api/monitoring', monitoringRoutes); // Rotas de monitoramento e observabilidade
+app.use('/api/tenants', tenantsRoutes); // Rotas públicas de tenants
 
 // Rota de compra (página HTML)
 app.use('/buy', buyRoutes);

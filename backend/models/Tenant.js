@@ -1,6 +1,29 @@
 const mongoose = require('mongoose');
 
 const tenantSchema = new mongoose.Schema({
+  // Chave única do tenant (usado em subdomínios e identificação)
+  key: {
+    type: String,
+    required: true,
+    unique: true,
+    lowercase: true,
+    trim: true,
+    validate: {
+      validator: function(v) {
+        // Apenas letras minúsculas, números e hífens
+        return /^[a-z0-9-]+$/.test(v);
+      },
+      message: 'Key deve conter apenas letras minúsculas, números e hífens'
+    }
+  },
+  
+  // Nome da empresa
+  name: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  
   // Informações básicas da empresa
   companyName: {
     type: String,
@@ -68,6 +91,13 @@ const tenantSchema = new mongoose.Schema({
         recruitment: { type: Boolean, default: false }
       }
     }
+  },
+  
+  // Plano direto (simplificado para acessar mais facilmente)
+  plan: {
+    type: String,
+    enum: ['trial', 'starter', 'professional', 'enterprise', 'custom'],
+    default: 'trial'
   },
   
   // Plano e billing
@@ -272,10 +302,11 @@ const tenantSchema = new mongoose.Schema({
 });
 
 // Índices
-// slug já tem índice criado pelo unique: true
+// key e slug já têm índice criado automaticamente pelo unique: true
 tenantSchema.index({ 'subscription.status': 1 });
 tenantSchema.index({ isActive: 1 });
 tenantSchema.index({ owner: 1 });
+tenantSchema.index({ plan: 1 });
 
 // Middleware para atualizar updatedAt
 tenantSchema.pre('save', function(next) {

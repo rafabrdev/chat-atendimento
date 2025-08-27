@@ -20,11 +20,32 @@ async function seedDefaultTenant() {
     
     console.log('✅ Conectado ao MongoDB');
     
-    // Verificar se o tenant default já existe
-    const existingTenant = await Tenant.findOne({ slug: 'default' });
+    // Obter key do tenant default do ambiente ou usar 'default'
+    const defaultTenantKey = process.env.TENANT_DEFAULT_KEY || 'default';
+    
+    // Verificar se o tenant default já existe (por key ou slug)
+    const existingTenant = await Tenant.findOne({
+      $or: [
+        { key: defaultTenantKey },
+        { slug: 'default' }
+      ]
+    });
     
     if (existingTenant) {
       console.log('⚠️  Tenant "default" já existe. Atualizando configurações...');
+      
+      // Garantir que tem a key
+      if (!existingTenant.key) {
+        existingTenant.key = defaultTenantKey;
+      }
+      
+      // Garantir que tem o name
+      if (!existingTenant.name) {
+        existingTenant.name = existingTenant.companyName || 'Default Organization';
+      }
+      
+      // Garantir que tem o plan correto
+      existingTenant.plan = 'enterprise';
       
       // Atualizar configurações se necessário
       existingTenant.allowedOrigins = existingTenant.allowedOrigins || [
@@ -59,6 +80,8 @@ async function seedDefaultTenant() {
     } else {
       // Criar novo tenant default
       const defaultTenant = new Tenant({
+        key: defaultTenantKey,
+        name: 'Default Organization',
         companyName: 'Default Organization',
         slug: 'default',
         domain: null, // Sem domínio específico para o default
@@ -109,6 +132,9 @@ async function seedDefaultTenant() {
             }
           }
         },
+        
+        // Plano direto
+        plan: 'enterprise',
         
         // Subscription
         subscription: {
@@ -168,15 +194,17 @@ async function seedDefaultTenant() {
       await defaultTenant.save();
       console.log('✅ Tenant "default" criado com sucesso!');
       console.log(`   ID: ${defaultTenant._id}`);
+      console.log(`   Key: ${defaultTenant.key}`);
       console.log(`   Slug: ${defaultTenant.slug}`);
       console.log(`   Nome: ${defaultTenant.companyName}`);
     }
     
     // Exibir estatísticas
-    const tenant = await Tenant.findOne({ slug: 'default' });
+    const tenant = await Tenant.findOne({ key: defaultTenantKey });
     console.log('\n📊 Configurações do Tenant Default:');
+    console.log(`   - Key: ${tenant.key}`);
     console.log(`   - Módulos habilitados: ${Object.keys(tenant.modules).filter(m => tenant.modules[m].enabled).join(', ')}`);
-    console.log(`   - Plano: ${tenant.subscription.plan}`);
+    console.log(`   - Plano: ${tenant.plan || tenant.subscription.plan}`);
     console.log(`   - Status: ${tenant.subscription.status}`);
     console.log(`   - Origens permitidas: ${tenant.allowedOrigins.length}`);
     console.log(`   - Limites de usuários: ${tenant.limits.users}`);

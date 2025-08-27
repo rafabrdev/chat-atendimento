@@ -1,0 +1,34 @@
+{
+  "defaultTenant": {
+    "key": "default",
+    "name": "Default Organization",
+    "description": "Tenant padrão para migração e desenvolvimento",
+    "plan": "enterprise",
+    "allowedOrigins": [
+      "http://localhost:3000",
+      "http://localhost:3001",
+      "http://localhost:5173",
+      "http://localhost:5174",
+      "http://127.0.0.1:3000",
+      "http://127.0.0.1:3001",
+      "http://127.0.0.1:5173",
+      "http://127.0.0.1:5174"
+    ]
+  },
+  "cache": {
+    "enabled": true,
+    "ttl": 300,
+    "useRedis": false,
+    "redisUrl": "redis://localhost:6379"
+  },
+  "fallback": {
+    "enabled": true,
+    "defaultTenantKey": "default",
+    "gracePeriodDays": 30
+  },
+  "validation": {
+    "strictMode": false,
+    "requireHeader": false,
+    "allowQueryParam": true
+  }
+}
