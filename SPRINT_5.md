@@ -281,10 +281,11 @@
   </Task>
 
   <!-- 12: FRONTEND - SOCKET SINGLETON & AUTH -->
-  <Task id="F02" name="FrontendSocketSingleton" priority="high">
+  <Task id="F02" name="FrontendSocketSingleton" priority="high" status="COMPLETED">
     <FilesToCreateOrEdit>
-      <File>frontend/src/services/socket.js</File>
-      <Search>frontend/src/**</Search>
+      <File>frontend/src/services/socketService.js</File>
+      <File>frontend/src/hooks/useSocketService.js</File>
+      <File>frontend/src/components/Testing/SocketServiceTest.jsx</File>
     </FilesToCreateOrEdit>
     <Objective>
       Create a single socket instance factory createSocket({tenantId}) that attaches auth { token, tenantId } and reconnects after token refresh. Replace direct io() calls across the codebase.
@@ -297,6 +298,28 @@
     <Validation>
       <Check>grep -R "io(" in frontend returns only socket.js (or ignored exceptions).</Check>
     </Validation>
+    <CompletionDate>2025-08-27</CompletionDate>
+    <Implementation>
+      <File>frontend/src/services/socketService.js - Singleton Socket.IO com autenticação completa</File>
+      <File>frontend/src/hooks/useSocketService.js - Hook React para integração</File>
+      <File>frontend/src/components/Testing/SocketServiceTest.jsx - Suite de testes visuais</File>
+      <Feature>Singleton pattern para instância global do Socket.IO</Feature>
+      <Feature>Integração completa com AuthService para refresh token</Feature>
+      <Feature>Reconexão automática após refresh do token</Feature>
+      <Feature>Tenant-aware: todos eventos incluem tenantId no metadata</Feature>
+      <Feature>Rooms/namespaces isolados por tenant</Feature>
+      <Feature>Fila de eventos durante desconexão</Feature>
+      <Feature>Heartbeat e auto-sync com retry exponencial</Feature>
+      <Feature>Debug mode com logs detalhados em desenvolvimento</Feature>
+    </Implementation>
+    <TestCoverage>
+      <Test>Conexão/desconexão/reconexão</Test>
+      <Test>Emit de eventos com queue</Test>
+      <Test>Join/leave rooms tenant-aware</Test>
+      <Test>Reconexão após token refresh</Test>
+      <Test>Fila de eventos processada após reconexão</Test>
+      <Test>Isolamento entre tenants</Test>
+    </TestCoverage>
   </Task>
 
   <!-- 13: FRONTEND - TenantProvider, Branding & FeatureGate -->
