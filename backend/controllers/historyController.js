@@ -27,8 +27,8 @@ exports.getConversationHistory = async (req, res) => {
       priority
     } = req.query;
 
-    // Build query
-    const query = {};
+    // Build query - incluindo filtro de tenant
+    const query = { ...req.tenantFilter || {} };
 
     // User-specific filters
     if (req.user.role === 'client') {
@@ -83,6 +83,7 @@ exports.getConversationHistory = async (req, res) => {
     let conversationIds = [];
     if (search) {
       const messageQuery = {
+        ...req.tenantFilter || {},
         content: { $regex: search, $options: 'i' }
       };
 
@@ -130,12 +131,14 @@ exports.getConversationHistory = async (req, res) => {
     const conversationsWithLastMessage = await Promise.all(
       conversations.map(async (conv) => {
         const lastMessage = await Message.findOne({
+          ...req.tenantFilter || {},
           conversationId: conv._id
         })
           .sort({ createdAt: -1 })
           .populate('sender', 'name');
 
         const messageCount = await Message.countDocuments({
+          ...req.tenantFilter || {},
           conversationId: conv._id
         });
 
@@ -198,7 +201,10 @@ exports.getConversationDetail = async (req, res) => {
     }
 
     // Get all messages
-    const messages = await Message.find({ conversationId })
+    const messages = await Message.find({ 
+      ...req.tenantFilter || {},
+      conversationId 
+    })
       .populate('sender', 'name email avatar')
       .populate('files')
       .sort({ createdAt: 1 });
@@ -206,7 +212,10 @@ exports.getConversationDetail = async (req, res) => {
     // Get files if requested
     let files = [];
     if (includeFiles === 'true') {
-      files = await File.find({ conversation: conversationId })
+      files = await File.find({ 
+        ...req.tenantFilter || {},
+        conversation: conversationId 
+      })
         .populate('uploadedBy', 'name email')
         .sort({ createdAt: -1 });
     }
@@ -257,7 +266,10 @@ exports.exportConversationToCSV = async (req, res) => {
     }
 
     // Get messages
-    const messages = await Message.find({ conversationId })
+    const messages = await Message.find({ 
+      ...req.tenantFilter || {},
+      conversationId 
+    })
       .populate('sender', 'name email')
       .sort({ createdAt: 1 });
 
@@ -330,7 +342,10 @@ exports.exportConversationToPDF = async (req, res) => {
     }
 
     // Get messages
-    const messages = await Message.find({ conversationId })
+    const messages = await Message.find({ 
+      ...req.tenantFilter || {},
+      conversationId 
+    })
       .populate('sender', 'name email')
       .sort({ createdAt: 1 });
 
@@ -488,7 +503,7 @@ exports.getConversationAnalytics = async (req, res) => {
       userFilter.assignedAgent = req.user._id;
     }
 
-    const query = { ...dateFilter, ...userFilter };
+    const query = { ...req.tenantFilter || {}, ...dateFilter, ...userFilter };
 
     // Group format based on groupBy parameter
     let groupFormat;
@@ -631,6 +646,7 @@ exports.searchConversations = async (req, res) => {
 
     // Search in messages
     const messageQuery = {
+      ...req.tenantFilter || {},
       content: { $regex: q, $options: 'i' }
     };
 
@@ -640,6 +656,7 @@ exports.searchConversations = async (req, res) => {
 
     // Build conversation query
     const conversationQuery = {
+      ...req.tenantFilter || {},
       $or: [
         { _id: { $in: conversationIds } },
         { tags: { $regex: q, $options: 'i' } }
@@ -670,6 +687,7 @@ exports.searchConversations = async (req, res) => {
     const results = await Promise.all(
       conversations.map(async (conv) => {
         const matchingMessages = await Message.find({
+          ...req.tenantFilter || {},
           conversationId: conv._id,
           content: { $regex: q, $options: 'i' }
         })

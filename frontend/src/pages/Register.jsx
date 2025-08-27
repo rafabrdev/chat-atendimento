@@ -1,9 +1,14 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Mail, Lock, User, Building } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Eye, EyeOff, Mail, Lock, User, Building, CheckCircle, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
+import api from '../config/api';
+import toast from 'react-hot-toast';
 
 const Register = () => {
+  const [searchParams] = useSearchParams();
+  const inviteToken = searchParams.get('invite');
+  
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -11,14 +16,54 @@ const Register = () => {
     confirmPassword: '',
     role: 'client',
     phone: '',
-    company: ''
+    company: '',
+    inviteToken: inviteToken || ''
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState({});
+  const [inviteData, setInviteData] = useState(null);
+  const [loadingInvite, setLoadingInvite] = useState(false);
+  const [inviteError, setInviteError] = useState(null);
 
   const { register, isLoading } = useAuth();
   const navigate = useNavigate();
+
+  // Verificar convite se houver token
+  useEffect(() => {
+    if (inviteToken) {
+      validateInvite();
+    }
+  }, [inviteToken]);
+
+  const validateInvite = async () => {
+    setLoadingInvite(true);
+    setInviteError(null);
+    
+    try {
+      const response = await api.get(`/invitations/validate/${inviteToken}`);
+      const invitation = response.data.data;
+      
+      if (invitation) {
+        setInviteData(invitation);
+        // Preencher campos com dados do convite
+        setFormData(prev => ({
+          ...prev,
+          name: invitation.name || '',
+          email: invitation.email || '',
+          role: invitation.role || 'client',
+          inviteToken: inviteToken
+        }));
+        toast.success('Convite válido! Complete seu registro.');
+      }
+    } catch (error) {
+      const message = error.response?.data?.message || 'Convite inválido ou expirado';
+      setInviteError(message);
+      toast.error(message);
+    } finally {
+      setLoadingInvite(false);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -80,7 +125,8 @@ const Register = () => {
       role: formData.role,
       profile: {
         phone: formData.phone
-      }
+      },
+      inviteToken: formData.inviteToken || undefined
     };
 
     const result = await register(userData);
@@ -100,12 +146,42 @@ const Register = () => {
               <User className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-2xl font-bold text-gray-900">
-              Criar conta
+              {inviteData ? 'Registro por Convite' : 'Criar conta'}
             </h1>
             <p className="text-gray-600 mt-2">
-              Preencha os dados para começar
+              {inviteData ? 'Complete seu cadastro para aceitar o convite' : 'Preencha os dados para começar'}
             </p>
           </div>
+
+          {/* Invite Status */}
+          {loadingInvite && (
+            <div className="mb-6 p-4 bg-blue-50 rounded-lg flex items-center">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500 mr-3"></div>
+              <span className="text-blue-700">Verificando convite...</span>
+            </div>
+          )}
+
+          {inviteData && !inviteError && (
+            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center">
+              <CheckCircle className="w-5 h-5 text-green-600 mr-3" />
+              <div>
+                <p className="text-green-800 font-medium">Convite Válido!</p>
+                <p className="text-green-700 text-sm">
+                  Você foi convidado como {inviteData.role === 'client' ? 'Cliente' : inviteData.role === 'agent' ? 'Agente' : 'Administrador'}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {inviteError && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center">
+              <AlertCircle className="w-5 h-5 text-red-600 mr-3" />
+              <div>
+                <p className="text-red-800 font-medium">Erro no Convite</p>
+                <p className="text-red-700 text-sm">{inviteError}</p>
+              </div>
+            </div>
+          )}
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -145,9 +221,12 @@ const Register = () => {
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
+                  disabled={inviteData?.email} // Desabilitar se vier do convite
                   className={`w-full px-4 py-3 pl-10 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors ${
                     errors.email 
                       ? 'border-red-300 bg-red-50' 
+                      : inviteData?.email
+                      ? 'border-gray-200 bg-gray-50'
                       : 'border-gray-300 bg-white'
                   }`}
                   placeholder="seu@email.com"
@@ -159,21 +238,23 @@ const Register = () => {
               )}
             </div>
 
-            {/* Role */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Tipo de conta
-              </label>
-              <select
-                name="role"
-                value={formData.role}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors"
-              >
-                <option value="client">Cliente</option>
-                <option value="agent">Agente</option>
-              </select>
-            </div>
+            {/* Role - Ocultar se vier do convite */}
+            {!inviteData && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Tipo de conta
+                </label>
+                <select
+                  name="role"
+                  value={formData.role}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors"
+                >
+                  <option value="client">Cliente</option>
+                  <option value="agent">Agente</option>
+                </select>
+              </div>
+            )}
 
             {/* Phone (optional) */}
             <div>

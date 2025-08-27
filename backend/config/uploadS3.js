@@ -3,6 +3,7 @@ const multerS3 = require('multer-s3');
 const { S3Client } = require('@aws-sdk/client-s3');
 const path = require('path');
 const fs = require('fs');
+const s3Service = require('../services/s3Service');
 
 // Configuração do ambiente
 const isProduction = process.env.NODE_ENV === 'production';
@@ -63,18 +64,31 @@ if (useS3) {
         fieldName: file.fieldname,
         originalName: file.originalname,
         uploadedBy: req.user ? req.user.id : 'anonymous',
+        tenantId: req.tenantId ? req.tenantId.toString() : 'unknown',
         environment: process.env.NODE_ENV
       });
     },
     key: function (req, file, cb) {
+      // Multi-tenant: usar tenantId do request
+      const tenantId = req.tenantId;
+      
+      if (!tenantId) {
+        return cb(new Error('TenantId is required for file upload'));
+      }
+      
       const subDir = getSubDirectory(file.mimetype);
       const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
       const ext = path.extname(file.originalname);
       const name = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9]/g, '-');
       
-      // Organizar por ambiente
+      // Usar estrutura de pastas com tenant
       const environment = process.env.NODE_ENV || 'development';
-      const key = `${environment}/${subDir}/${name}-${uniqueSuffix}${ext}`;
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      
+      // Formato: tenants/{tenantId}/{environment}/{fileType}/{year}/{month}/{filename}
+      const key = `tenants/${tenantId}/${environment}/${subDir}/${year}/${month}/${name}-${uniqueSuffix}${ext}`;
       
       cb(null, key);
     }
@@ -203,7 +217,7 @@ const handleUploadError = (err, req, res, next) => {
 };
 
 // Função para obter URL do arquivo
-const getFileUrl = (file) => {
+const getFileUrl = (file, tenantId = null) => {
   if (useS3) {
     // URL do S3
     if (file.location) {
@@ -213,6 +227,14 @@ const getFileUrl = (file) => {
     const bucket = process.env.S3_BUCKET_NAME;
     const region = process.env.AWS_REGION || 'us-east-1';
     const key = file.key;
+    
+    // Validar se a key pertence ao tenant (segurança adicional)
+    if (tenantId && s3Service.isEnabled) {
+      if (!s3Service.validateTenantAccess(key, tenantId)) {
+        console.warn(`Warning: File key ${key} does not belong to tenant ${tenantId}`);
+      }
+    }
+    
     return `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
   } else {
     // URL local

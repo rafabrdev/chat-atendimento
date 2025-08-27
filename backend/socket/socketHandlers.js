@@ -3,8 +3,9 @@ const User = require('../models/User');
 const chatService = require('../services/chatService');
 
 class SocketHandlers {
-  constructor(io) {
+  constructor(io, tenantMiddleware) {
     this.io = io;
+    this.tenantMiddleware = tenantMiddleware;
     this.connectedUsers = new Map();
     
     // Configurar Socket.IO para baixa latência
@@ -17,26 +18,23 @@ class SocketHandlers {
 
   async handleConnection(socket) {
     try {
-      // Verificar autenticação
-      const token = socket.handshake.auth?.token;
-      if (!token) {
+      // A autenticação já foi feita pelo middleware
+      // Socket já tem user, tenant, etc.
+      if (!socket.user) {
+        console.error('[SocketHandlers] Socket sem usuário autenticado');
         socket.disconnect();
         return;
       }
 
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const user = await User.findById(decoded.id);
+      const user = socket.user;
+      const tenant = socket.tenant;
 
-      if (!user) {
-        socket.disconnect();
-        return;
-      }
-
-      // Armazenar conexão
+      // Armazenar conexão com informações de tenant
       this.connectedUsers.set(socket.id, {
         socket,
         userId: user._id.toString(),
         role: user.role,
+        tenantId: socket.tenantId,
         companyId: user.companyId
       });
 
@@ -46,23 +44,34 @@ class SocketHandlers {
         lastSeen: new Date()
       });
 
-      // Juntar-se às salas apropriadas
+      // Juntar-se às salas apropriadas com escopo de tenant
+      if (socket.tenantId) {
+        // Sala geral do tenant (já feito pelo middleware)
+        // socket.join(`tenant:${socket.tenantId}`);
+        
+        // Salas específicas por role dentro do tenant
+        if (user.role === 'agent' || user.role === 'admin') {
+          socket.join(`tenant:${socket.tenantId}:agents`);
+        } else if (user.role === 'client') {
+          socket.join(`tenant:${socket.tenantId}:clients`);
+        }
+      }
+      
+      // Manter compatibilidade com company (deprecado)
       if (user.companyId) {
         socket.join(`company:${user.companyId}`);
       }
-      if (user.role === 'agent') {
-        socket.join('agents');
-      }
 
-      // Notificar outros usuários
-      if (user.companyId) {
-        socket.to(`company:${user.companyId}`).emit('user-status-changed', {
+      // Notificar outros usuários do mesmo tenant
+      if (socket.tenantId) {
+        socket.to(`tenant:${socket.tenantId}`).emit('user-status-changed', {
           userId: user._id,
-          status: 'online'
+          status: 'online',
+          tenantId: socket.tenantId
         });
       }
 
-      console.log(`User ${user._id} connected`);
+      console.log(`[SocketHandlers] User ${user._id} connected to tenant ${tenant?.slug || 'none'}`);
 
       // Configurar event handlers
       this.setupEventHandlers(socket);
@@ -110,24 +119,30 @@ class SocketHandlers {
   async handleJoinConversation(socket, data) {
     const connection = this.connectedUsers.get(socket.id);
     if (!connection) {
-      console.error('No connection found for join-conversation');
+      console.error('[SocketHandlers] No connection found for join-conversation');
       return;
     }
 
-    console.log(`User ${connection.userId} attempting to join conversation ${data.conversationId}`);
+    console.log(`[SocketHandlers] User ${connection.userId} attempting to join conversation ${data.conversationId}`);
 
     // Verificar se o usuário tem acesso à conversa
     const Conversation = require('../models/Conversation');
     
-    // Admin e agentes podem acessar qualquer conversa
+    // Aplicar filtro de tenant
+    const tenantFilter = socket.tenantId && !socket.isMaster ? { tenantId: socket.tenantId } : {};
+    
     let conversation;
-    if (connection.role === 'admin' || connection.role === 'agent') {
-      conversation = await Conversation.findById(data.conversationId);
+    if (connection.role === 'admin' || connection.role === 'agent' || socket.isMaster) {
+      conversation = await Conversation.findOne({
+        _id: data.conversationId,
+        ...tenantFilter
+      });
     } else {
       // Clientes só podem acessar suas próprias conversas
       conversation = await Conversation.findOne({
         _id: data.conversationId,
-        client: connection.userId
+        client: connection.userId,
+        ...tenantFilter
       });
     }
 

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { auth: protect } = require('../middleware/auth');
+const { loadTenant, applyTenantFilter } = require('../middleware/tenantMiddleware');
 const {
   getConversationHistory,
   getConversationDetail,
@@ -10,8 +11,10 @@ const {
   searchConversations
 } = require('../controllers/historyController');
 
-// All routes require authentication
+// All routes require authentication and tenant context
 router.use(protect);
+router.use(loadTenant);
+router.use(applyTenantFilter);
 
 // History routes
 /**

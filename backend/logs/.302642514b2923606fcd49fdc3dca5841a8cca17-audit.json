@@ -1,0 +1,20 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 3
+    },
+    "auditLog": "C:\\Users\\PeD\\Projs\\chat-atendimento\\backend\\logs\\.302642514b2923606fcd49fdc3dca5841a8cca17-audit.json",
+    "files": [
+        {
+            "date": 1756243118543,
+            "name": "C:\\Users\\PeD\\Projs\\chat-atendimento\\backend\\logs\\debug-2025-08-26.log",
+            "hash": "f5aabfe46346e29dd09c500ed3d15d8d48de5a59cb676bf4850cf7540a80e72e"
+        },
+        {
+            "date": 1756294100891,
+            "name": "C:\\Users\\PeD\\Projs\\chat-atendimento\\backend\\logs\\debug-2025-08-27.log",
+            "hash": "618452769bb55e1357291556394c2d7d8bd55b6d0abfbbac1f298566305a6ea2"
+        }
+    ],
+    "hashType": "sha256"
+}

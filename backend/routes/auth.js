@@ -1,6 +1,7 @@
 const express = require('express');
 const { authLimiter } = require('../middleware/rateLimiter');
 const { auth } = require('../middleware/auth');
+const { conditionalLoadTenant } = require('../middleware/conditionalTenant');
 const {
   register,
   login,
@@ -156,7 +157,7 @@ router.post('/login', authLimiter, login);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/profile', auth, getProfile);
+router.get('/profile', auth, conditionalLoadTenant, getProfile);
 
 /**
  * @swagger
@@ -206,7 +207,7 @@ router.get('/profile', auth, getProfile);
  *       401:
  *         description: Não autorizado
  */
-router.patch('/profile', auth, updateProfile);
+router.patch('/profile', auth, conditionalLoadTenant, updateProfile);
 
 /**
  * @swagger

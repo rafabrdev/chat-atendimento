@@ -3,10 +3,12 @@ const router = express.Router();
 const chatService = require('../services/chatService');
 const authMiddleware = require('../middleware/authMiddleware');
 const { requireRole } = require('../middleware/authMiddleware');
+const { conditionalLoadTenant } = require('../middleware/conditionalTenant');
 const Conversation = require('../models/Conversation');
 
 // Aplicar middleware de autenticação para todas as rotas
 router.use(authMiddleware);
+router.use(conditionalLoadTenant);
 
 /**
  * @swagger
@@ -49,10 +51,22 @@ router.post('/conversations', async (req, res) => {
   try {
     const { initialMessage, ...conversationBody } = req.body;
     
-    // Usar o ID do usuário e empresa do usuário autenticado
+    // Usar o ID do usuário e tenant do usuário autenticado
+    // O tenantId pode vir do middleware ou do próprio usuário
+    const tenantId = req.tenantId || 
+                     (req.user.tenantId?._id || req.user.tenantId) || 
+                     null;
+    
+    if (!tenantId) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Tenant ID é obrigatório para criar conversa' 
+      });
+    }
+    
     const conversationData = {
       ...conversationBody,
-      companyId: req.user.companyId || req.user._id, // Se não tiver empresa, usa o próprio ID
+      tenantId: tenantId,
       clientId: req.user._id
     };
     
@@ -62,6 +76,7 @@ router.post('/conversations', async (req, res) => {
     if (initialMessage) {
       const Message = require('../models/Message');
       const message = await Message.create({
+        tenantId: tenantId,  // Usar o mesmo tenantId da conversa
         conversationId: conversation._id,
         sender: req.user._id,
         senderType: (req.user.role === 'agent' || req.user.role === 'admin') ? 'agent' : 'client',
@@ -139,6 +154,7 @@ router.get('/conversations', async (req, res) => {
     const { status, assignedAgentId } = req.query;
     const userId = req.user._id;
     const userRole = req.user.role;
+    const tenantId = req.tenantId || (req.user.tenantId?._id || req.user.tenantId);
     
     // Para clientes, mostrar apenas suas próprias conversas
     // Para agentes, mostrar conversas atribuídas ou na fila
@@ -146,7 +162,8 @@ router.get('/conversations', async (req, res) => {
       userId,
       userRole,
       status,
-      assignedAgentId
+      assignedAgentId,
+      tenantId
     );
     res.json(conversations);
   } catch (error) {

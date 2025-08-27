@@ -1,6 +1,14 @@
 const mongoose = require('mongoose');
+const { tenantScopePlugin } = require('../plugins/tenantScopePlugin');
 
 const messageSchema = new mongoose.Schema({
+  // Multi-tenant: referência ao tenant (empresa)
+  tenantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tenant',
+    required: true
+    // index criado automaticamente pelo plugin
+  },
   conversationId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Conversation',
@@ -59,5 +67,9 @@ const messageSchema = new mongoose.Schema({
 
 // Índice para buscar mensagens de uma conversa
 messageSchema.index({ conversationId: 1, createdAt: -1 });
+
+
+// Aplicar plugin de tenant scope
+messageSchema.plugin(tenantScopePlugin);
 
 module.exports = mongoose.model('Message', messageSchema);

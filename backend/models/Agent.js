@@ -1,11 +1,18 @@
 const mongoose = require('mongoose');
+const { tenantScopePlugin } = require('../plugins/tenantScopePlugin');
 
 const agentSchema = new mongoose.Schema({
+  // Multi-tenant: referência ao tenant (empresa)
+  tenantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tenant',
+    required: true
+    // index criado automaticamente pelo plugin
+  },
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
-    unique: true
+    required: true
   },
   status: {
     type: String,
@@ -180,7 +187,8 @@ const agentSchema = new mongoose.Schema({
 });
 
 // Indexes for performance
-// user index removido - já criado automaticamente por unique: true
+// Índice único composto: cada usuário só pode ter um agent por tenant
+agentSchema.index({ tenantId: 1, user: 1 }, { unique: true });
 agentSchema.index({ status: 1, 'availability.isAvailable': 1 });
 agentSchema.index({ 'performance.averageRating': -1 });
 agentSchema.index({ 'availability.currentActiveChats': 1 });
@@ -296,5 +304,9 @@ agentSchema.statics.getWorkloadDistribution = async function() {
     }
   ]);
 };
+
+
+// Aplicar plugin de tenant scope
+agentSchema.plugin(tenantScopePlugin);
 
 module.exports = mongoose.model('Agent', agentSchema);

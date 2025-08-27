@@ -60,7 +60,12 @@ const Login = () => {
     const result = await login(formData.email, formData.password);
     
     if (result.success) {
-      navigate(from, { replace: true });
+      // Redirecionar baseado no role do usuário
+      if (result.user?.role === 'master') {
+        navigate('/master', { replace: true });
+      } else {
+        navigate(from, { replace: true });
+      }
     }
   };
 

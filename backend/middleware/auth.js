@@ -13,7 +13,11 @@ const auth = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id).select('-password');
+    
+    // Buscar usuário completo do banco incluindo tenantId
+    const user = await User.findById(decoded.id)
+      .select('-password')
+      .populate('tenantId', 'slug companyName isActive');
     
     if (!user) {
       return res.status(401).json({
@@ -29,7 +33,15 @@ const auth = async (req, res, next) => {
       });
     }
 
+    // Garantir que req.user tem tenantId (usar do token se não existir no banco)
     req.user = user;
+    if (!req.user.tenantId && decoded.tenantId) {
+      req.user.tenantId = decoded.tenantId;
+    }
+    
+    // Adicionar informações extras do token decodificado
+    req.user.tokenData = decoded;
+    
     next();
   } catch (error) {
     console.error('Auth middleware error:', error);

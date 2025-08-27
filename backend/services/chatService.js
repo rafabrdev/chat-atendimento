@@ -2,6 +2,7 @@ const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
 const QueueEntry = require('../models/QueueEntry');
 const User = require('../models/User');
+const lockService = require('./lockService');
 
 class ChatService {
   async createConversation(data) {
@@ -11,13 +12,19 @@ class ChatService {
         throw new Error('Client ID is required');
       }
       
+      if (!data.tenantId) {
+        throw new Error('Tenant ID is required');
+      }
+      
       const conversation = await Conversation.create({
-        companyId: data.companyId || null, // Opcional
+        tenantId: data.tenantId,  // Usar tenantId em vez de companyId
         client: data.clientId,
         priority: data.priority || 'normal',
         tags: data.tags || [],
         status: 'waiting',
-        participants: [data.clientId]
+        participants: [data.clientId],
+        subject: data.subject || '',
+        department: data.department || 'general'
       });
 
       // Popular os dados do cliente
@@ -61,6 +68,7 @@ class ChatService {
     
     // Preparar dados da mensagem
     const messageData = {
+      tenantId: conversation.tenantId,  // Usar o tenantId da conversa
       conversationId: data.conversationId,
       sender: data.senderId,
       senderId: data.senderId,
@@ -123,8 +131,13 @@ class ChatService {
     return msgObj;
   }
 
-  async getConversationsForUser(userId, userRole, status, assignedAgentId) {
+  async getConversationsForUser(userId, userRole, status, assignedAgentId, tenantId) {
     const query = {};
+    
+    // IMPORTANTE: Sempre filtrar por tenantId para garantir isolamento
+    if (tenantId) {
+      query.tenantId = tenantId;
+    }
     
     // Se for cliente, mostrar apenas suas próprias conversas
     if (userRole === 'client') {
@@ -246,43 +259,129 @@ class ChatService {
   }
 
   async assignConversationToAgent(conversationId, agentId) {
-    // Verificar se o agente existe e está disponível
-    const agent = await User.findOne({
-      _id: agentId,
-      $or: [{ role: 'agent' }, { role: 'admin' }],
-      active: true
-    });
+    // Resource key para o lock
+    const lockResource = `conversation:${conversationId}`;
+    const lockHolder = `agent:${agentId}`;
+    
+    // Configurações do lock
+    const lockOptions = {
+      ttl: 10000, // 10 segundos de timeout
+      retry: true,
+      maxRetries: 3,
+      retryDelay: 200 // 200ms entre tentativas
+    };
 
-    if (!agent) {
-      throw new Error('Agent not found or not available');
+    // Tentar adquirir o lock
+    const lockResult = await lockService.acquire(lockResource, lockHolder, lockOptions);
+    
+    if (!lockResult.success) {
+      // Lock não adquirido - outro agente já está processando
+      const errorMsg = lockResult.holder === 'timeout' 
+        ? 'Timeout ao tentar aceitar a conversa. Por favor, tente novamente.'
+        : `Conversa já foi aceita por outro agente`;
+      
+      // Buscar informações atualizadas da conversa
+      const currentConversation = await Conversation.findById(conversationId)
+        .populate('assignedAgent', 'name email');
+      
+      if (currentConversation?.assignedAgent) {
+        throw new Error(`Conversa já foi aceita por ${currentConversation.assignedAgent.name}`);
+      }
+      
+      throw new Error(errorMsg);
     }
 
-    // Atualizar conversa
-    const conversation = await Conversation.findByIdAndUpdate(
-      conversationId,
-      {
-        assignedAgentId: agentId,
-        assignedAgent: agentId,
-        status: 'active',
-        $addToSet: { participants: agentId }
-      },
-      { new: true }
-    ).populate('client', 'name email role company')
-     .populate('assignedAgent', 'name email role status company');
+    try {
+      // Verificar novamente se a conversa ainda está disponível (double-check)
+      const currentConversation = await Conversation.findById(conversationId);
+      
+      if (!currentConversation) {
+        throw new Error('Conversa não encontrada');
+      }
+      
+      if (currentConversation.status !== 'waiting') {
+        // Se já não está mais esperando, pode ter sido aceita por outro agente
+        if (currentConversation.assignedAgent) {
+          const assignedAgent = await User.findById(currentConversation.assignedAgent).select('name');
+          throw new Error(`Conversa já foi aceita por ${assignedAgent?.name || 'outro agente'}`);
+        }
+        throw new Error('Conversa não está mais disponível');
+      }
 
-    // Remover da fila
-    await QueueEntry.deleteOne({ conversationId });
+      // Verificar se o agente existe e está disponível
+      const agent = await User.findOne({
+        _id: agentId,
+        $or: [{ role: 'agent' }, { role: 'admin' }],
+        active: true
+      });
 
-    // Atualizar status do agente
-    await User.findByIdAndUpdate(agentId, { status: 'busy' });
-    
-    // Adicionar última mensagem
-    const lastMessage = await Message.findOne({ conversationId: conversation._id })
-      .populate('sender', 'name email role')
-      .sort({ createdAt: -1 });
-    conversation._doc.lastMessage = lastMessage;
+      if (!agent) {
+        throw new Error('Agente não encontrado ou não disponível');
+      }
 
-    return conversation;
+      // Usar transação para garantir atomicidade
+      const session = await Conversation.startSession();
+      let conversation;
+      
+      try {
+        await session.startTransaction();
+        
+        // Atualizar conversa atomicamente
+        conversation = await Conversation.findOneAndUpdate(
+          {
+            _id: conversationId,
+            status: 'waiting' // Garantir que ainda está esperando
+          },
+          {
+            assignedAgentId: agentId,
+            assignedAgent: agentId,
+            status: 'active',
+            $addToSet: { participants: agentId }
+          },
+          { 
+            new: true,
+            session
+          }
+        ).populate('client', 'name email role company')
+         .populate('assignedAgent', 'name email role status company');
+
+        if (!conversation) {
+          throw new Error('Conversa já foi aceita por outro agente');
+        }
+
+        // Remover da fila
+        await QueueEntry.deleteOne({ conversationId }, { session });
+
+        // Atualizar status do agente
+        await User.findByIdAndUpdate(
+          agentId, 
+          { status: 'busy' },
+          { session }
+        );
+        
+        await session.commitTransaction();
+      } catch (error) {
+        await session.abortTransaction();
+        throw error;
+      } finally {
+        await session.endSession();
+      }
+      
+      // Adicionar última mensagem (fora da transação para não afetar performance)
+      const lastMessage = await Message.findOne({ conversationId: conversation._id })
+        .populate('sender', 'name email role')
+        .sort({ createdAt: -1 });
+      conversation._doc.lastMessage = lastMessage;
+
+      // Log de sucesso
+      console.log(`✅ Conversa ${conversationId} aceita com sucesso pelo agente ${agent.name}`);
+
+      return conversation;
+      
+    } finally {
+      // Sempre liberar o lock
+      await lockService.release(lockResource, lockResult.token);
+    }
   }
 
   async processQueue() {

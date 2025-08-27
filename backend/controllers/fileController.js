@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const sharp = require('sharp');
 const { getSubDirectory, getFileUrl, useS3 } = require('../config/uploadS3');
+const s3Service = require('../services/s3Service');
 
 // Generate thumbnail for images
 const generateThumbnail = async (filePath, fileType) => {
@@ -70,11 +71,23 @@ exports.uploadFiles = async (req, res) => {
     const uploadedFiles = [];
     
     for (const file of req.files) {
-      // Get file URL (S3 or local)
-      const fileUrl = getFileUrl(file);
+      // Get file URL (S3 or local) with tenant validation
+      const fileUrl = getFileUrl(file, req.tenantId);
+      
+      // Validate S3 key belongs to tenant
+      if (useS3 && file.key) {
+        if (!s3Service.validateTenantAccess(file.key, req.tenantId)) {
+          console.error(`Security warning: File key ${file.key} does not belong to tenant ${req.tenantId}`);
+          return res.status(403).json({
+            success: false,
+            error: 'File upload validation failed'
+          });
+        }
+      }
       
       // Create file record
       const fileDoc = new File({
+        tenantId: req.tenantId, // Add tenant ID for multi-tenant
         filename: file.filename || file.key, // Use key for S3
         originalName: file.originalname,
         mimetype: file.mimetype,
@@ -87,7 +100,7 @@ exports.uploadFiles = async (req, res) => {
         // Store S3 specific data
         ...(useS3 && {
           s3Key: file.key,
-          s3Bucket: file.bucket,
+          s3Bucket: file.bucket || process.env.S3_BUCKET_NAME,
           s3Location: file.location
         })
       });
@@ -153,8 +166,11 @@ exports.getConversationFiles = async (req, res) => {
       });
     }
     
-    // Build query
-    const query = { conversation: conversationId };
+    // Build query with tenant filter
+    const query = { 
+      tenantId: req.tenantId,
+      conversation: conversationId 
+    };
     if (fileType) {
       query.fileType = fileType;
     }
@@ -194,8 +210,10 @@ exports.downloadFile = async (req, res) => {
   try {
     const { fileId } = req.params;
     
-    const file = await File.findById(fileId)
-      .populate('conversation');
+    const file = await File.findOne({
+      tenantId: req.tenantId,
+      _id: fileId
+    }).populate('conversation');
     
     if (!file) {
       return res.status(404).json({
@@ -217,7 +235,43 @@ exports.downloadFile = async (req, res) => {
       });
     }
     
-    // Check if file exists on disk
+    // Handle S3 files
+    if (file.storageType === 's3' && file.s3Key) {
+      // Validate tenant access to S3 file
+      if (!s3Service.validateTenantAccess(file.s3Key, req.tenantId)) {
+        console.error(`Security violation: Attempted cross-tenant file access ${fileId}`);
+        return res.status(403).json({
+          success: false,
+          error: 'Access denied'
+        });
+      }
+      
+      try {
+        // Generate signed URL for S3 download
+        const downloadUrl = await s3Service.getSignedDownloadUrl(
+          file.s3Key,
+          req.tenantId,
+          3600 // 1 hour expiration
+        );
+        
+        // Return signed URL for client to download
+        return res.json({
+          success: true,
+          downloadUrl,
+          filename: file.originalName,
+          mimetype: file.mimetype,
+          size: file.size
+        });
+      } catch (s3Error) {
+        console.error('S3 download error:', s3Error);
+        return res.status(500).json({
+          success: false,
+          error: 'Error generating download link'
+        });
+      }
+    }
+    
+    // Handle local files
     if (!fs.existsSync(file.path)) {
       return res.status(404).json({
         success: false,
@@ -247,8 +301,10 @@ exports.deleteFile = async (req, res) => {
   try {
     const { fileId } = req.params;
     
-    const file = await File.findById(fileId)
-      .populate('conversation');
+    const file = await File.findOne({
+      tenantId: req.tenantId,
+      _id: fileId
+    }).populate('conversation');
     
     if (!file) {
       return res.status(404).json({
@@ -266,12 +322,31 @@ exports.deleteFile = async (req, res) => {
       });
     }
     
-    // Delete file from disk
-    if (fs.existsSync(file.path)) {
-      fs.unlinkSync(file.path);
+    // Delete file from S3 if applicable
+    if (file.storageType === 's3' && file.s3Key) {
+      // Validate tenant access before deletion
+      if (!s3Service.validateTenantAccess(file.s3Key, req.tenantId)) {
+        console.error(`Security violation: Attempted cross-tenant file deletion ${fileId}`);
+        return res.status(403).json({
+          success: false,
+          error: 'Access denied'
+        });
+      }
+      
+      try {
+        await s3Service.deleteFile(file.s3Key, req.tenantId);
+      } catch (s3Error) {
+        console.error('S3 deletion error:', s3Error);
+        // Continue with database deletion even if S3 fails
+      }
+    } else {
+      // Delete local file
+      if (fs.existsSync(file.path)) {
+        fs.unlinkSync(file.path);
+      }
     }
     
-    // Delete thumbnail if exists
+    // Delete thumbnail if exists (usually local)
     if (file.thumbnail) {
       const thumbnailPath = path.join(__dirname, '..', file.thumbnail);
       if (fs.existsSync(thumbnailPath)) {

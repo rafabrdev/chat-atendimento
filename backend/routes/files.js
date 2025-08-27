@@ -1,7 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const { auth: protect } = require('../middleware/auth');
+const { loadTenant, applyTenantFilter } = require('../middleware/tenantMiddleware');
 const { upload, handleUploadError } = require('../config/uploadS3');
+const {
+  validateFileAccess,
+  validateFileUpload,
+  validateFileList,
+  sanitizeFilename,
+  setFileSecurityHeaders
+} = require('../middleware/fileAccessMiddleware');
 const {
   uploadFiles,
   getConversationFiles,
@@ -9,8 +17,10 @@ const {
   deleteFile
 } = require('../controllers/fileController');
 
-// All routes require authentication
+// All routes require authentication and tenant context
 router.use(protect);
+router.use(loadTenant);
+router.use(applyTenantFilter);
 
 /**
  * @swagger
@@ -83,8 +93,10 @@ router.use(protect);
  */
 router.post(
   '/upload',
+  sanitizeFilename,
   upload.array('files', 5),
   handleUploadError,
+  validateFileUpload,
   uploadFiles
 );
 
@@ -142,7 +154,7 @@ router.post(
  *       404:
  *         description: Conversa não encontrada
  */
-router.get('/conversation/:conversationId', getConversationFiles);
+router.get('/conversation/:conversationId', validateFileList, getConversationFiles);
 
 /**
  * @swagger
@@ -181,7 +193,7 @@ router.get('/conversation/:conversationId', getConversationFiles);
  *       404:
  *         description: Arquivo não encontrado
  */
-router.get('/download/:fileId', downloadFile);
+router.get('/download/:fileId', validateFileAccess, setFileSecurityHeaders, downloadFile);
 
 /**
  * @swagger
@@ -221,6 +233,6 @@ router.get('/download/:fileId', downloadFile);
  *       404:
  *         description: Arquivo não encontrado
  */
-router.delete('/:fileId', deleteFile);
+router.delete('/:fileId', validateFileAccess, deleteFile);
 
 module.exports = router;

@@ -1,7 +1,20 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const { tenantScopePlugin } = require('../plugins/tenantScopePlugin');
 
 const userSchema = new mongoose.Schema({
+  // Multi-tenant: referência ao tenant (empresa)
+  tenantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tenant',
+    required: function() {
+      // Master não precisa de tenant
+      return this.role !== 'master';
+    }
+    // index criado automaticamente pelo plugin
+  },
+  
+  // Manter companyId para compatibilidade (deprecated)
   companyId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Company'
@@ -18,7 +31,10 @@ const userSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: [true, 'Senha é obrigatória'],
+    required: function() {
+      // Senha só é obrigatória se não foi convidado
+      return !this.invitedBy;
+    },
     minlength: [6, 'Senha deve ter pelo menos 6 caracteres']
   },
   name: {
@@ -28,13 +44,64 @@ const userSchema = new mongoose.Schema({
   },
   company: {
     type: String,
-    required: [true, 'Empresa é obrigatória'],
+    required: function() {
+      // Master não precisa de empresa
+      return this.role !== 'master';
+    },
     trim: true
   },
   role: {
     type: String,
-    enum: ['client', 'agent', 'admin'],
-    default: 'client'
+    enum: ['master', 'admin', 'agent', 'client'],
+    default: 'client',
+    required: true
+  },
+  
+  // Controle de Hierarquia e Criação
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: function() {
+      // Master não precisa de createdBy
+      // Para usuários existentes (migração), não é obrigatório
+      if (this.role === 'master') return false;
+      
+      // Para novos usuários, é obrigatório (exceto durante migração)
+      // Verifica se é uma criação nova (não tem _id ainda)
+      if (this.isNew && !this._id) {
+        return true;
+      }
+      
+      return false;
+    }
+  },
+  invitedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  invitationToken: {
+    type: String,
+    select: false
+  },
+  invitationExpires: {
+    type: Date,
+    select: false
+  },
+  invitationAcceptedAt: Date,
+  
+  // Controle de Permissões Customizadas
+  customPermissions: {
+    type: Map,
+    of: Boolean,
+    default: new Map()
+  },
+  
+  // Departamento (para agentes)
+  department: {
+    type: String,
+    required: function() {
+      return this.role === 'agent';
+    }
   },
   status: {
     type: String,
@@ -67,10 +134,25 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// Aplicar plugin de tenant scope
+// User é especial: master não precisa de tenant
+userSchema.plugin(tenantScopePlugin, {
+  required: function() {
+    return this.role !== 'master';
+  }
+});
+
 // Hash password antes de salvar
 userSchema.pre('save', async function(next) {
+  // Se a senha não foi modificada, não fazer nada
   if (!this.isModified('password')) return next();
   
+  // Se a senha já está em hash (começa com $2), não fazer hash novamente
+  if (this.password && this.password.startsWith('$2')) {
+    return next();
+  }
+  
+  // Fazer hash apenas se for uma senha plain text
   this.password = await bcrypt.hash(this.password, 12);
   next();
 });

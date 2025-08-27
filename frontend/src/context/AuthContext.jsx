@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 const initialState = {
   user: null,
   token: null,
+  tenantId: null,
   isAuthenticated: false,
   isLoading: true,
 };
@@ -34,6 +35,7 @@ const authReducer = (state, action) => {
         ...state,
         user: action.payload.user,
         token: action.payload.token,
+        tenantId: action.payload.user?.tenantId || null,
         isAuthenticated: true,
         isLoading: false,
       };
@@ -42,6 +44,7 @@ const authReducer = (state, action) => {
         ...state,
         user: null,
         token: null,
+        tenantId: null,
         isAuthenticated: false,
         isLoading: false,
       };
@@ -130,6 +133,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
       localStorage.setItem('userId', user.id || user._id); // Salvar ID separadamente para fácil acesso
+      localStorage.setItem('tenantId', user.tenantId); // Salvar tenantId
 
       dispatch({
         type: AUTH_ACTIONS.LOGIN_SUCCESS,
@@ -160,6 +164,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
       localStorage.setItem('userId', user.id || user._id); // Salvar ID separadamente para fácil acesso
+      localStorage.setItem('tenantId', user.tenantId); // Salvar tenantId
 
       dispatch({
         type: AUTH_ACTIONS.LOGIN_SUCCESS,
@@ -182,6 +187,8 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('tenantId');
     dispatch({ type: AUTH_ACTIONS.LOGOUT });
     toast.success('Logout realizado com sucesso!');
   };

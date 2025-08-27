@@ -10,6 +10,7 @@ import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import PrivateRoute from './components/PrivateRoute.jsx';
 import PublicRoute from './components/PublicRoute.jsx';
 import MainLayout from './components/Layout/MainLayout.jsx';
+import RoleBasedRedirect from './components/RoleBasedRedirect.jsx';
 
 // Pages
 import Login from './pages/Login.jsx';
@@ -22,6 +23,10 @@ import NotFound from './pages/NotFound.jsx';
 import Unauthorized from './pages/Unauthorized.jsx';
 import TestMode from './pages/TestMode.jsx';
 import AdminDashboard from './pages/AdminDashboard.jsx';
+import MasterDashboard from './pages/MasterDashboard.jsx';
+import Pricing from './pages/Pricing.jsx';
+import CheckoutSuccess from './pages/CheckoutSuccess.jsx';
+import UserManagement from './pages/UserManagement.jsx';
 
 // Components for Sprint 3
 import AgentManagement from './components/Agent/AgentManagement.jsx';
@@ -50,6 +55,7 @@ function App() {
                 </PublicRoute>
               } 
             />
+            {/* Registro com suporte a convites */}
             <Route 
               path="/register" 
               element={
@@ -58,12 +64,20 @@ function App() {
                 </PublicRoute>
               } 
             />
+            <Route 
+              path="/pricing" 
+              element={<Pricing />} 
+            />
+            <Route 
+              path="/checkout/success" 
+              element={<CheckoutSuccess />} 
+            />
 
             {/* Rotas privadas */}
             <Route 
               path="/dashboard" 
               element={
-                <PrivateRoute>
+                <PrivateRoute roles={['client', 'agent', 'admin']}>
                 <SocketWrapper>
                   <MainLayout>
                     <Dashboard />
@@ -75,7 +89,7 @@ function App() {
             <Route 
               path="/conversations" 
               element={
-                <PrivateRoute>
+                <PrivateRoute roles={['client', 'agent', 'admin']}>
                   <SocketWrapper>
                     <MainLayout>
                       <Conversations />
@@ -133,6 +147,30 @@ function App() {
               } 
             />
             <Route 
+              path="/users" 
+              element={
+                <PrivateRoute roles={['admin']}>
+                  <SocketWrapper>
+                    <MainLayout>
+                      <UserManagement />
+                    </MainLayout>
+                  </SocketWrapper>
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="/master" 
+              element={
+                <PrivateRoute roles={['master']}>
+                  <SocketWrapper>
+                    <MainLayout>
+                      <MasterDashboard />
+                    </MainLayout>
+                  </SocketWrapper>
+                </PrivateRoute>
+              } 
+            />
+            <Route 
               path="/test-mode" 
               element={
                 <PrivateRoute>
@@ -145,7 +183,11 @@ function App() {
             <Route path="/unauthorized" element={<Unauthorized />} />
             
             {/* Redirecionamentos */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/" element={
+              <PrivateRoute>
+                <RoleBasedRedirect />
+              </PrivateRoute>
+            } />
             <Route path="*" element={<NotFound />} />
           </Routes>
 

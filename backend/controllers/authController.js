@@ -1,12 +1,7 @@
-const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-
-// Gerar JWT Token
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE,
-  });
-};
+const Tenant = require('../models/Tenant');
+const { generateToken, generateRefreshToken } = require('../middleware/jwtAuth');
+const { setTenantContext } = require('../utils/tenantContext');
 
 // @desc    Registrar usuário
 // @route   POST /api/auth/register
@@ -32,6 +27,33 @@ const register = async (req, res, next) => {
       });
     }
 
+  // Para novos usuários (exceto master), criar ou buscar tenant
+    let tenantId = null;
+    if (role !== 'master') {
+      // Buscar tenant padrão ou criar um novo baseado na empresa
+      let tenant = await Tenant.findOne({ slug: 'default' });
+      
+      if (!tenant) {
+        // Criar tenant para a empresa
+        const slug = await Tenant.generateSlug(company);
+        tenant = await Tenant.create({
+          companyName: company,
+          slug: slug,
+          contactEmail: email,
+          subscription: {
+            plan: 'trial',
+            status: 'active',
+            trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 dias
+          },
+          modules: {
+            chat: { enabled: true }
+          }
+        });
+      }
+      
+      tenantId = tenant._id;
+    }
+
     // Criar usuário
     const user = await User.create({
       name,
@@ -39,17 +61,25 @@ const register = async (req, res, next) => {
       password,
       company,
       role: role || 'client',
-      profile: profile || {}
+      profile: profile || {},
+      tenantId: tenantId,
+      createdBy: req.user?._id || null // Se for criado por outro usuário
     });
 
-    const token = generateToken(user._id);
+    // Popular tenantId para incluir no token
+    await user.populate('tenantId', 'slug companyName');
+    
+    const token = generateToken(user);
+    const refreshToken = generateRefreshToken(user);
 
     res.status(201).json({
       success: true,
       message: 'Usuário criado com sucesso',
       data: {
-        user,
-        token
+        user: user.toJSON(),
+        token,
+        refreshToken,
+        tenant: user.tenantId
       }
     });
   } catch (error) {
@@ -72,8 +102,10 @@ const login = async (req, res, next) => {
       });
     }
 
-    // Buscar usuário (incluindo senha para comparação)
-    const user = await User.findOne({ email }).select('+password');
+    // Buscar usuário (incluindo senha para comparação) e popular tenant
+    const user = await User.findOne({ email })
+      .select('+password')
+      .populate('tenantId', 'slug companyName isActive subscription');
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -97,19 +129,39 @@ const login = async (req, res, next) => {
         message: 'Conta desativada'
       });
     }
+    
+    // Para usuários não-master, verificar tenant
+    if (user.role !== 'master' && user.tenantId) {
+      if (!user.tenantId.isActive) {
+        return res.status(403).json({
+          success: false,
+          message: 'Tenant inativo'
+        });
+      }
+      
+      if (user.tenantId.subscription?.status === 'suspended') {
+        return res.status(403).json({
+          success: false,
+          message: 'Assinatura suspensa'
+        });
+      }
+    }
 
     // Atualizar último login
     user.lastLogin = new Date();
     await user.save();
 
-    const token = generateToken(user._id);
+    const token = generateToken(user);
+    const refreshToken = generateRefreshToken(user);
 
     res.status(200).json({
       success: true,
       message: 'Login realizado com sucesso',
       data: {
         user: user.toJSON(), // Remove password
-        token
+        token,
+        refreshToken,
+        tenant: user.tenantId
       }
     });
   } catch (error) {

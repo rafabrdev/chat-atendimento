@@ -1,7 +1,6 @@
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
-const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const http = require('http');
@@ -12,6 +11,9 @@ const path = require('path');
 const connectDB = require('./config/database');
 const errorHandler = require('./middleware/errorHandler');
 const { generalLimiter } = require('./middleware/rateLimiter');
+const { resolveTenant, applyTenantScope } = require('./middleware/tenantMiddlewareV2');
+const { dynamicCors, validateTenantCors } = require('./middleware/dynamicCors');
+const SocketTenantMiddleware = require('./middleware/socketTenantMiddleware');
 
 // Importar rotas
 const authRoutes = require('./routes/auth');
@@ -19,36 +21,69 @@ const chatRoutes = require('./routes/chatRoutes');
 const fileRoutes = require('./routes/files');
 const agentRoutes = require('./routes/agents');
 const historyRoutes = require('./routes/history');
+const masterRoutes = require('./routes/master');
+const stripeRoutes = require('./routes/stripe');
+const buyRoutes = require('./routes/buy');
+const corsRoutes = require('./routes/cors');
+const monitoringRoutes = require('./routes/monitoringRoutes');
 
 const app = express();
 const server = http.createServer(app);
 
-// Configurar Socket.io
+// Configurar Socket.io com CORS dinâmico
 const io = socketIo(server, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
-    methods: ["GET", "POST"]
+    origin: async (origin, callback) => {
+      // Permitir todas as origens no Socket.IO
+      // A validação será feita no middleware de autenticação
+      callback(null, true);
+    },
+    methods: ["GET", "POST"],
+    credentials: true
   }
 });
+
+// Inicializar middleware de Socket.IO para tenant
+const socketTenantMiddleware = new SocketTenantMiddleware();
 
 // Conectar ao banco de dados
 connectDB();
 
 // Middleware de segurança e logging
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://js.stripe.com"],
+      frameSrc: ["'self'", "https://js.stripe.com", "https://hooks.stripe.com"],
+      connectSrc: ["'self'", "https://api.stripe.com"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    },
+  },
+}));
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
-// CORS
-app.use(cors({
-  origin: process.env.CLIENT_URL || "http://localhost:5173",
-  credentials: true
-}));
+// CORS dinâmico baseado em tenant
+app.use(dynamicCors());
+
+// Ativar fallback para tenant default durante migração
+if (!process.env.USE_DEFAULT_TENANT_FALLBACK) {
+  process.env.USE_DEFAULT_TENANT_FALLBACK = 'true';
+}
 
 // Rate limiting
 app.use(generalLimiter);
 
-// Parsing middleware
-app.use(express.json({ limit: '10mb' }));
+// Parsing middleware - IMPORTANTE: Stripe webhook precisa de raw body
+app.use((req, res, next) => {
+  // Skip json parsing for Stripe webhook
+  if (req.originalUrl === '/api/stripe/webhook') {
+    next();
+  } else {
+    express.json({ limit: '10mb' })(req, res, next);
+  }
+});
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Serve static files (uploads)
@@ -103,12 +138,23 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Middleware de tenant removido do global
+// Cada rota protegida aplica conditionalLoadTenant após auth
+// Isso garante que req.user esteja disponível quando o tenant for carregado
+
 // Rotas da API
 app.use('/api/auth', authRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/agents', agentRoutes);
 app.use('/api/history', historyRoutes);
+app.use('/api/master', masterRoutes); // Rotas master (sem tenant)
+app.use('/api/stripe', stripeRoutes); // Rotas do Stripe (pagamentos)
+app.use('/api/cors', corsRoutes); // Rotas de gerenciamento CORS
+app.use('/api/monitoring', monitoringRoutes); // Rotas de monitoramento e observabilidade
+
+// Rota de compra (página HTML)
+app.use('/buy', buyRoutes);
 
 // Rota 404
 app.use('*', (req, res) => {
@@ -121,13 +167,23 @@ app.use('*', (req, res) => {
 // Error handler middleware (deve ser o último)
 app.use(errorHandler);
 
-// Socket.io connection handling
+// Socket.io connection handling com tenant
 const SocketHandlers = require('./socket/socketHandlers');
-const socketHandlers = new SocketHandlers(io);
+const socketHandlers = new SocketHandlers(io, socketTenantMiddleware);
+
+// Middleware de autenticação Socket.IO
+io.use(async (socket, next) => {
+  await socketTenantMiddleware.authenticate(socket, next);
+});
 
 // Usar namespace root em vez de /chat para simplicidade
 io.on('connection', (socket) => {
   socketHandlers.handleConnection(socket);
+  
+  // Registrar disconnect no middleware de tenant
+  socket.on('disconnect', () => {
+    socketTenantMiddleware.unregisterConnection(socket.id);
+  });
 });
 
 // Disponibilizar io para as rotas

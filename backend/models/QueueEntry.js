@@ -1,11 +1,18 @@
 const mongoose = require('mongoose');
+const { tenantScopePlugin } = require('../plugins/tenantScopePlugin');
 
 const queueEntrySchema = new mongoose.Schema({
+  // Multi-tenant: referência ao tenant (empresa)
+  tenantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tenant',
+    required: true
+    // index criado automaticamente pelo plugin
+  },
   conversationId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Conversation',
-    required: true,
-    unique: true
+    required: true
   },
   priority: {
     type: Number,
@@ -25,5 +32,11 @@ const queueEntrySchema = new mongoose.Schema({
 
 // Índices para ordenação da fila
 queueEntrySchema.index({ priority: -1, createdAt: 1 });
+// Índice único composto: cada conversação só pode ter uma entrada na fila por tenant
+queueEntrySchema.index({ tenantId: 1, conversationId: 1 }, { unique: true });
+
+
+// Aplicar plugin de tenant scope
+queueEntrySchema.plugin(tenantScopePlugin);
 
 module.exports = mongoose.model('QueueEntry', queueEntrySchema);

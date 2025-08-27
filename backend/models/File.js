@@ -1,6 +1,14 @@
 const mongoose = require('mongoose');
+const { tenantScopePlugin } = require('../plugins/tenantScopePlugin');
 
 const fileSchema = new mongoose.Schema({
+  // Multi-tenant: referência ao tenant (empresa)
+  tenantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tenant',
+    required: true
+    // index criado automaticamente pelo plugin
+  },
   filename: {
     type: String,
     required: true
@@ -114,5 +122,9 @@ fileSchema.pre('save', function(next) {
   }
   next();
 });
+
+
+// Aplicar plugin de tenant scope
+fileSchema.plugin(tenantScopePlugin);
 
 module.exports = mongoose.model('File', fileSchema);

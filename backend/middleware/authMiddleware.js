@@ -19,8 +19,10 @@ const authMiddleware = async (req, res, next) => {
     // Verificar e decodificar o token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Buscar o usuário
-    const user = await User.findById(decoded.id).select('-password');
+    // Buscar o usuário e popular o tenantId
+    const user = await User.findById(decoded.id)
+      .select('-password')
+      .populate('tenantId');
     
     if (!user) {
       return res.status(401).json({

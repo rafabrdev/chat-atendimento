@@ -22,6 +22,11 @@ const PrivateRoute = ({ children, roles = [] }) => {
 
   // Se roles foram especificadas, verificar se usuário tem permissão
   if (roles.length > 0 && !roles.includes(user?.role)) {
+    // Se é master tentando acessar outras rotas, redirecionar para /master
+    if (user?.role === 'master') {
+      return <Navigate to="/master" replace />;
+    }
+    // Para outros casos, redirecionar para unauthorized
     return <Navigate to="/unauthorized" replace />;
   }
 
