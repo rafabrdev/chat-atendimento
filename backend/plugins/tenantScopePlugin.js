@@ -73,10 +73,31 @@ function tenantScopePlugin(schema, options = {}) {
     }
     
     // Tentar obter de diferentes fontes
-    return context._tenantId || 
-           context.options?.tenantId ||
-           context.getOptions?.()?.tenantId ||
-           null;
+    // 1. Da própria query
+    if (context._tenantId) {
+      return context._tenantId;
+    }
+    
+    // 2. Do Model (quando usado com setTenantContext)
+    if (context.model && context.model._tenantId) {
+      return context.model._tenantId;
+    }
+    
+    // 3. Do constructor para operações de documento
+    if (context.constructor && context.constructor._tenantId) {
+      return context.constructor._tenantId;
+    }
+    
+    // 4. Das opções da query
+    if (context.options?.tenantId) {
+      return context.options.tenantId;
+    }
+    
+    if (context.getOptions?.()?.tenantId) {
+      return context.getOptions().tenantId;
+    }
+    
+    return null;
   }
   
   // Helper para aplicar filtro de tenant
@@ -177,7 +198,18 @@ function tenantScopePlugin(schema, options = {}) {
   
   // Pre-aggregate: adicionar $match com tenantId
   schema.pre('aggregate', function() {
-    const tenantId = getTenantId(this);
+    // Para aggregate, precisa acessar o model de forma diferente
+    let tenantId = this._tenantId;
+    
+    // Se não encontrou na query, tentar no model
+    if (!tenantId && this._model && this._model._tenantId) {
+      tenantId = this._model._tenantId;
+    }
+    
+    // Tentar também via this.model (pode variar dependendo da versão do Mongoose)
+    if (!tenantId && this.model && this.model()._tenantId) {
+      tenantId = this.model()._tenantId;
+    }
     
     if (tenantId && !this._bypassTenantScope) {
       // Adicionar $match como primeiro estágio

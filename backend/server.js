@@ -14,6 +14,7 @@ const { generalLimiter } = require('./middleware/rateLimiter');
 const { resolveTenant, applyTenantScope } = require('./middleware/tenantMiddlewareV2');
 const { dynamicCors, validateTenantCors } = require('./middleware/dynamicCors');
 const SocketTenantMiddleware = require('./middleware/socketTenantMiddleware');
+const { mongooseTenantMiddleware } = require('./plugins/tenantScopePlugin');
 
 // Importar rotas
 const authRoutes = require('./routes/auth');
@@ -142,6 +143,11 @@ app.get('/health', (req, res) => {
 // Middleware de tenant removido do global
 // Cada rota protegida aplica conditionalLoadTenant após auth
 // Isso garante que req.user esteja disponível quando o tenant for carregado
+
+// Mongoose Tenant Middleware - injeta contexto de tenant nos modelos
+// IMPORTANTE: Deve vir DEPOIS do resolveTenant ser aplicado nas rotas
+// Por isso não é global, mas aplicado em cada rota protegida
+// app.use(mongooseTenantMiddleware); // Descomentar quando todas as rotas tiverem resolveTenant
 
 // Rotas da API
 app.use('/api/auth', authRoutes);
