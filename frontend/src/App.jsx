@@ -5,6 +5,7 @@ import { useSocket } from './hooks/useSocket';
 
 // Context
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
+import { TenantProvider } from './providers/TenantProvider.jsx';
 
 // Components
 import PrivateRoute from './components/PrivateRoute.jsx';
@@ -43,7 +44,8 @@ function SocketWrapper({ children }) {
 function App() {
   return (
     <AuthProvider>
-      <Router>
+      <TenantProvider>
+        <Router>
         <div className="App">
           <Routes>
             {/* Rotas públicas */}
@@ -215,7 +217,8 @@ function App() {
             }}
           />
         </div>
-      </Router>
+        </Router>
+      </TenantProvider>
     </AuthProvider>
   );
 }

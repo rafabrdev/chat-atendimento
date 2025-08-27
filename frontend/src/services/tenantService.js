@@ -5,8 +5,168 @@
  */
 
 import api from '../config/api';
+import authService from './authService';
 
 class TenantService {
+  constructor() {
+    // Cache do tenant atual
+    this.currentTenant = null;
+    this.tenantLoadPromise = null;
+  }
+
+  /**
+   * Resolve tenant by subdomain or key
+   */
+  async resolveTenant(key = null) {
+    try {
+      // Se não foi fornecido key, tentar extrair do subdomínio
+      if (!key) {
+        key = this.extractTenantFromHost();
+      }
+
+      // Se ainda não tem key, usar default
+      if (!key) {
+        key = 'default';
+      }
+
+      const response = await api.get('/tenants/resolve', {
+        params: { key }
+      });
+      
+      this.currentTenant = response.data.data;
+      
+      // Armazenar tenantId no authService
+      if (this.currentTenant?._id) {
+        authService.setTenantId(this.currentTenant._id);
+      }
+      
+      return this.currentTenant;
+    } catch (error) {
+      console.error('Error resolving tenant:', error);
+      // Em caso de erro, tentar usar tenant default
+      if (key !== 'default') {
+        return this.resolveTenant('default');
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Extract tenant key from hostname
+   */
+  extractTenantFromHost() {
+    const hostname = window.location.hostname;
+    
+    // Se for localhost ou IP, verificar query param
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('tenant');
+    }
+    
+    // Extrair subdomínio
+    const parts = hostname.split('.');
+    if (parts.length >= 3) {
+      // Tem subdomínio
+      return parts[0];
+    }
+    
+    return null;
+  }
+
+  /**
+   * Load tenant if not already loaded
+   */
+  async ensureTenantLoaded() {
+    if (this.currentTenant) {
+      return this.currentTenant;
+    }
+
+    // Se já está carregando, aguardar
+    if (this.tenantLoadPromise) {
+      return this.tenantLoadPromise;
+    }
+
+    // Iniciar carregamento
+    this.tenantLoadPromise = this.resolveTenant();
+    
+    try {
+      const tenant = await this.tenantLoadPromise;
+      return tenant;
+    } finally {
+      this.tenantLoadPromise = null;
+    }
+  }
+
+  /**
+   * Apply tenant branding to document
+   */
+  applyBranding(tenant) {
+    if (!tenant?.branding) return;
+
+    const { colors, fonts, logoUrl } = tenant.branding;
+    const root = document.documentElement;
+
+    // Aplicar cores
+    if (colors) {
+      if (colors.primary) root.style.setProperty('--primary-color', colors.primary);
+      if (colors.secondary) root.style.setProperty('--secondary-color', colors.secondary);
+      if (colors.accent) root.style.setProperty('--accent-color', colors.accent);
+      if (colors.background) root.style.setProperty('--background-color', colors.background);
+      if (colors.text) root.style.setProperty('--text-color', colors.text);
+    }
+
+    // Aplicar fontes
+    if (fonts) {
+      if (fonts.heading) root.style.setProperty('--font-heading', fonts.heading);
+      if (fonts.body) root.style.setProperty('--font-body', fonts.body);
+    }
+
+    // Atualizar favicon e título
+    if (tenant.name) {
+      document.title = tenant.name;
+    }
+
+    // Aplicar favicon customizado se houver
+    if (logoUrl) {
+      const favicon = document.querySelector('link[rel="icon"]');
+      if (favicon) {
+        favicon.href = logoUrl;
+      }
+    }
+  }
+
+  /**
+   * Check if feature is allowed for current tenant
+   */
+  isFeatureAllowed(feature) {
+    if (!this.currentTenant) return false;
+    
+    const { plan, allowedModules, limits } = this.currentTenant;
+    
+    // Verificar módulos permitidos
+    if (allowedModules && !allowedModules.includes(feature)) {
+      return false;
+    }
+    
+    // Verificar limites do plano
+    if (limits && limits[feature] === false) {
+      return false;
+    }
+    
+    // Verificar features do plano
+    if (plan?.features && !plan.features.includes(feature)) {
+      return false;
+    }
+    
+    return true;
+  }
+
+  /**
+   * Get current tenant cached
+   */
+  getCachedTenant() {
+    return this.currentTenant;
+  }
   /**
    * Get current tenant information
    */
