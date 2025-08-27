@@ -14,7 +14,7 @@
   </ExecutionOrder>
 
   <!-- 1: TENANT INFRA (backend) -->
-  <Task id="B01" name="CreateTenantsCollectionAndSeed" priority="high">
+  <Task id="B01" name="CreateTenantsCollectionAndSeed" priority="high" status="COMPLETED">
     <FilesToCreateOrEdit>
       <File>backend/models/Tenant.js</File>
       <File>backend/scripts/seedTenants.js</File>
@@ -40,7 +40,7 @@
   </Task>
 
   <!-- 2: TENANT RESOLUTION MIDDLEWARE -->
-  <Task id="B02" name="TenantResolverMiddleware" priority="high">
+  <Task id="B02" name="TenantResolverMiddleware" priority="high" status="COMPLETED">
     <FilesToCreateOrEdit>
       <File>backend/middleware/tenantResolver.js</File>
       <File>backend/server.js</File>
@@ -65,7 +65,7 @@
   </Task>
 
   <!-- 3: MONGOOSE PLUGIN tenantScope -->
-  <Task id="B03" name="MongooseTenantScopePlugin" priority="high">
+  <Task id="B03" name="MongooseTenantScopePlugin" priority="high" status="COMPLETED">
     <FilesToCreateOrEdit>
       <File>backend/models/plugins/tenantScope.js</File>
       <Search>backend/models/*.js</Search>
@@ -87,7 +87,7 @@
   </Task>
 
   <!-- 4: MODELS REFATOR (tenantId + indices) -->
-  <Task id="B04" name="RefactorModelsAddTenantIdAndIndices" priority="high">
+  <Task id="B04" name="RefactorModelsAddTenantIdAndIndices" priority="high" status="COMPLETED">
     <FilesToEdit>
       <File>backend/models/User.js</File>
       <File>backend/models/Chat.js</File>
@@ -117,7 +117,7 @@
   </Task>
 
   <!-- 5: JWT & AUTH ADAPTATIONS -->
-  <Task id="B05" name="JWTIncludeTenantRolesAndGuards" priority="high">
+  <Task id="B05" name="JWTIncludeTenantRolesAndGuards" priority="high" status="COMPLETED">
     <FilesToCreateOrEdit>
       <File>backend/services/authService.js</File>
       <File>backend/middleware/auth.js</File>
@@ -136,7 +136,7 @@
   </Task>
 
   <!-- 6: SOCKET.IO - TENANT NAMESPACES + REDIS ADAPTER -->
-  <Task id="B06" name="SocketIOIsolationAndRedisAdapter" priority="high">
+  <Task id="B06" name="SocketIOIsolationAndRedisAdapter" priority="high" status="COMPLETED">
     <FilesToEdit>
       <File>backend/socket/index.js</File>
       <File>backend/server.js</File>
@@ -156,7 +156,7 @@
   </Task>
 
   <!-- 7: S3 UPLOADS - TENANT PREFIX + POLICIES -->
-  <Task id="B07" name="S3TenantPrefixAndPresignedURLs" priority="high">
+  <Task id="B07" name="S3TenantPrefixAndPresignedURLs" priority="high" status="COMPLETED">
     <FilesToEdit>
       <File>backend/services/s3Service.js</File>
       <File>backend/controllers/attachments.js</File>
@@ -175,7 +175,7 @@
   </Task>
 
   <!-- 8: ATOMIC CHAT ACCEPTANCE (BACKEND) -->
-  <Task id="B08" name="AtomicChatAcceptEndpoint" priority="high">
+  <Task id="B08" name="AtomicChatAcceptEndpoint" priority="high" status="COMPLETED">
     <FilesToEdit>
       <File>backend/controllers/chatController.js</File>
       <File>backend/routes/chat.js</File>
@@ -193,7 +193,7 @@
   </Task>
 
   <!-- 9: BACKEND - CORS DYNAMIC PER TENANT -->
-  <Task id="B09" name="DynamicCORSPerTenant" priority="medium">
+  <Task id="B09" name="DynamicCORSPerTenant" priority="medium" status="COMPLETED">
     <FilesToEdit>
       <File>backend/config/cors.js</File>
       <File>backend/middleware/tenantResolver.js</File>
@@ -323,7 +323,7 @@
   </Task>
 
   <!-- 13: FRONTEND - TenantProvider, Branding & FeatureGate -->
-  <Task id="F03" name="TenantProviderBrandingFeatureGate" priority="high">
+  <Task id="F03" name="TenantProviderBrandingFeatureGate" priority="high" status="COMPLETED">
     <FilesToCreateOrEdit>
       <File>frontend/src/providers/TenantProvider.jsx</File>
       <File>frontend/src/components/FeatureGate.jsx</File>
@@ -340,6 +340,18 @@
     <Validation>
       <Check>Header shows tenant.name and plan; toggling allowedModules hides UI modules.</Check>
     </Validation>
+    <CompletionDate>2025-08-27</CompletionDate>
+    <Implementation>
+      <File>frontend/src/providers/TenantProvider.jsx - Provider com contexto global de tenant</File>
+      <File>frontend/src/components/FeatureGate.jsx - Componente para controle de features</File>
+      <File>frontend/src/components/Testing/TenantProviderTest.jsx - Componente de teste</File>
+      <Feature>Resolução de tenant por subdomínio ou query param</Feature>
+      <Feature>Aplicação automática de branding (cores e fontes)</Feature>
+      <Feature>FeatureGate com controle por plano e status</Feature>
+      <Feature>Componentes auxiliares: FeatureButton, FeatureBadge, PlanLimit</Feature>
+      <Feature>TenantStatusGate para controle por status do tenant</Feature>
+      <Feature>Tolerância a erros em rotas públicas</Feature>
+    </Implementation>
   </Task>
 
   <!-- 14: FRONTEND - React Query Keys & Cache Isolation -->
@@ -651,16 +663,34 @@
   <!-- STATUS SUMMARY ADDED 2025-08-27 -->
   <StatusSummary>
     <TotalTasks>25</TotalTasks>
-    <CompletedTasks>2</CompletedTasks>
+    <CompletedTasks>13</CompletedTasks>
     <InProgressTasks>0</InProgressTasks>
-    <PendingTasks>23</PendingTasks>
-    <Progress>8%</Progress>
-    <LastUpdate>2025-08-27T14:50:00</LastUpdate>
+    <PendingTasks>12</PendingTasks>
+    <Progress>52%</Progress>
+    <LastUpdate>2025-08-27T19:56:00</LastUpdate>
     <NextTasks>
-      <NextTask id="F02" name="FrontendSocketSingleton" estimatedHours="2"/>
-      <NextTask id="F03" name="TenantProviderBrandingFeatureGate" estimatedHours="3"/>
-      <NextTask id="F04" name="ReactQueryTenantKeyIntegration" estimatedHours="1"/>
+      <NextTask id="F04" name="ReactQueryTenantKeyIntegration" estimatedHours="1" note="Projeto não usa React Query ainda, pode ser pulada"/>
+      <NextTask id="F05" name="FrontendUploadServicePrefixTenant" estimatedHours="2" note="Sistema de upload já existe e funciona com tenant"/>
+      <NextTask id="F06" name="FrontendGlobalErrorHandling" estimatedHours="2"/>
+      <NextTask id="F07" name="AcceptChatUIAtomicHandling" estimatedHours="1"/>
     </NextTasks>
+    <CompletedBackendTasks>
+      <Task>B01 - Tenant Model & Seed</Task>
+      <Task>B02 - Tenant Resolver Middleware</Task>
+      <Task>B03 - Mongoose Tenant Scope Plugin</Task>
+      <Task>B04 - Models Refactor with TenantId</Task>
+      <Task>B05 - JWT Include Tenant & Roles</Task>
+      <Task>B06 - Socket.IO Isolation & Redis</Task>
+      <Task>B07 - S3 Tenant Prefix</Task>
+      <Task>B08 - Atomic Chat Accept</Task>
+      <Task>B09 - Dynamic CORS per Tenant</Task>
+      <Task>B10 - Structured Logging</Task>
+    </CompletedBackendTasks>
+    <CompletedFrontendTasks>
+      <Task>F01 - API Interceptor & Refresh Queue</Task>
+      <Task>F02 - Socket Singleton</Task>
+      <Task>F03 - TenantProvider & FeatureGate</Task>
+    </CompletedFrontendTasks>
   </StatusSummary>
 
 </ProjectManifest>

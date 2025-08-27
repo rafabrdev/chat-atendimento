@@ -10,7 +10,7 @@ import {
   FiCheck,
   FiAlertCircle
 } from 'react-icons/fi';
-import api from '../../config/api';
+import uploadService from '../../services/uploadService';
 
 const FileUpload = ({ conversationId, onFilesUploaded, maxFiles = 5 }) => {
   const [files, setFiles] = useState([]);
@@ -70,47 +70,78 @@ const FileUpload = ({ conversationId, onFilesUploaded, maxFiles = 5 }) => {
   };
 
   const formatFileSize = (bytes) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+    return uploadService.formatFileSize(bytes);
   };
 
   const uploadFiles = async () => {
-    if (files.length === 0 || !conversationId) return;
+    if (files.length === 0) {
+      console.warn('[FileUpload] No files to upload');
+      return;
+    }
+    
+    if (!conversationId) {
+      console.error('[FileUpload] No conversationId provided');
+      setErrors([{
+        name: 'Upload Error',
+        errors: 'No conversation selected. Please select a conversation first.'
+      }]);
+      setTimeout(() => setErrors([]), 5000);
+      return;
+    }
+    
+    console.log('[FileUpload] Starting upload with conversationId:', conversationId);
 
     setUploading(true);
-    const formData = new FormData();
-    formData.append('conversationId', conversationId);
-
-    files.forEach(({ file }) => {
-      formData.append('files', file);
-    });
+    const uploadedFiles = [];
+    const uploadErrors = [];
 
     try {
-      const response = await api.post('/files/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        },
-        onUploadProgress: (progressEvent) => {
-          const percentCompleted = Math.round(
-            (progressEvent.loaded * 100) / progressEvent.total
-          );
-          setUploadProgress({ total: percentCompleted });
+      // Upload files sequentially using presigned URLs
+      for (let i = 0; i < files.length; i++) {
+        const { file, id } = files[i];
+        
+        try {
+          // Set individual progress
+          setUploadProgress(prev => ({ ...prev, [id]: 0 }));
+          
+          // Upload using presigned URL service
+          const fileRecord = await uploadService.uploadFile(file, {
+            conversationId,
+            onProgress: (progress) => {
+              setUploadProgress(prev => ({ ...prev, [id]: progress }));
+              
+              // Calculate total progress
+              const totalProgress = ((i * 100) + progress) / files.length;
+              setUploadProgress(prev => ({ ...prev, total: Math.round(totalProgress) }));
+            }
+          });
+          
+          uploadedFiles.push(fileRecord);
+          setUploadProgress(prev => ({ ...prev, [id]: 100 }));
+        } catch (error) {
+          console.error(`Failed to upload ${file.name}:`, error);
+          uploadErrors.push({
+            name: file.name,
+            errors: error.message
+          });
         }
-      });
+      }
 
-      if (response.data.success) {
-        onFilesUploaded(response.data.files);
+      if (uploadedFiles.length > 0) {
+        onFilesUploaded(uploadedFiles);
         setFiles([]);
         setUploadProgress({});
+      }
+      
+      if (uploadErrors.length > 0) {
+        setErrors(uploadErrors);
+        setTimeout(() => setErrors([]), 5000);
       }
     } catch (error) {
       console.error('Upload error:', error);
       setErrors([{
         name: 'Upload Failed',
-        errors: error.response?.data?.error || 'Failed to upload files'
+        errors: error.message || 'Failed to upload files'
       }]);
       setTimeout(() => setErrors([]), 5000);
     } finally {
@@ -211,9 +242,9 @@ const FileUpload = ({ conversationId, onFilesUploaded, maxFiles = 5 }) => {
               )}
 
               {/* Upload Status */}
-              {uploading && uploadProgress.total && (
+              {uploading && uploadProgress[id] !== undefined && (
                 <div className="ml-2 flex items-center">
-                  {uploadProgress.total < 100 ? (
+                  {uploadProgress[id] < 100 ? (
                     <div className="w-8 h-8">
                       <svg className="transform -rotate-90 w-8 h-8">
                         <circle
@@ -232,7 +263,7 @@ const FileUpload = ({ conversationId, onFilesUploaded, maxFiles = 5 }) => {
                           stroke="currentColor"
                           strokeWidth="3"
                           fill="none"
-                          strokeDasharray={`${uploadProgress.total * 0.88} 88`}
+                          strokeDasharray={`${uploadProgress[id] * 0.88} 88`}
                           className="text-blue-500"
                         />
                       </svg>

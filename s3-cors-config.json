@@ -1,0 +1,35 @@
+{
+  "CORSRules": [
+    {
+      "AllowedOrigins": [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "https://suporte.brsi.net.br",
+        "https://*.brsi.net.br"
+      ],
+      "AllowedMethods": [
+        "GET",
+        "PUT",
+        "POST",
+        "DELETE",
+        "HEAD"
+      ],
+      "AllowedHeaders": [
+        "*"
+      ],
+      "ExposeHeaders": [
+        "ETag",
+        "x-amz-server-side-encryption",
+        "x-amz-request-id",
+        "x-amz-version-id",
+        "x-amz-meta-tenantid",
+        "x-amz-meta-userid",
+        "x-amz-meta-conversationid",
+        "x-amz-meta-originalname",
+        "x-amz-meta-uploadedat"
+      ],
+      "MaxAgeSeconds": 3000
+    }
+  ]
+}
