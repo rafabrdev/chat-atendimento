@@ -65,14 +65,15 @@ const fileSchema = new mongoose.Schema({
   s3Key: {
     type: String,
     sparse: true, // Allow null for local files
-    // S3 key deve incluir tenantId: {tenantId}/{year}/{month}/{uuid}_{filename}
+    // S3 key deve incluir tenantId: tenants/{tenantId}/{environment}/{fileType}/{year}/{month}/{uuid}_{filename}
     validate: {
       validator: function(v) {
         if (!v) return true; // Permitir null para arquivos locais
-        // Verificar se o s3Key começa com o tenantId
-        return v.startsWith(this.tenantId?.toString() || '');
+        // Verificar se o s3Key começa com tenants/{tenantId}
+        const expectedPrefix = `tenants/${this.tenantId?.toString()}/`;
+        return v.startsWith(expectedPrefix);
       },
-      message: 'S3 key deve começar com tenantId'
+      message: 'S3 key deve começar com tenants/{tenantId}'
     }
   },
   s3Bucket: {
@@ -142,15 +143,22 @@ fileSchema.pre('save', function(next) {
     this.fileType = this.determineFileType();
   }
   
-  // Se for armazenamento S3, garantir que o caminho inclui tenantId
+  // Se for armazenamento S3, garantir que o caminho inclui tenants/{tenantId}
   if (this.storageType === 's3' && this.s3Key) {
-    const tenantPrefix = `${this.tenantId}/`;
-    if (!this.s3Key.startsWith(tenantPrefix)) {
-      // Adicionar prefixo do tenant se não existir
+    const expectedPrefix = `tenants/${this.tenantId}/`;
+    if (!this.s3Key.startsWith(expectedPrefix)) {
+      // Se não começar com o prefixo correto, adicionar
       const date = new Date();
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, '0');
-      this.s3Key = `${tenantPrefix}${year}/${month}/${this.s3Key}`;
+      const environment = process.env.NODE_ENV || 'development';
+      // Remover prefixos incorretos se existirem
+      let cleanKey = this.s3Key;
+      if (cleanKey.startsWith(`${this.tenantId}/`)) {
+        cleanKey = cleanKey.substring(`${this.tenantId}/`.length);
+      }
+      // Montar path correto
+      this.s3Key = `tenants/${this.tenantId}/${environment}/${this.fileType || 'other'}/${year}/${month}/${cleanKey}`;
     }
   }
   

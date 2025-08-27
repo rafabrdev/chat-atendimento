@@ -1,4 +1,4 @@
-const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand, ListObjectsV2Command, CopyObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand, ListObjectsV2Command, CopyObjectCommand, CreateMultipartUploadCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const path = require('path');
 
@@ -115,6 +115,72 @@ class S3Service {
     }
     
     return `https://${this.bucket}.s3.${region}.amazonaws.com/${s3Key}`;
+  }
+
+  /**
+   * Gera presigned URL para upload
+   */
+  async generatePresignedUploadUrl(options) {
+    if (!this.isEnabled) {
+      throw new Error('S3 is not enabled');
+    }
+
+    const {
+      key,
+      contentType,
+      metadata = {},
+      conditions = [],
+      expiresIn = 3600
+    } = options;
+
+    const command = new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      ContentType: contentType,
+      Metadata: metadata
+    });
+
+    try {
+      const url = await getSignedUrl(this.client, command, { expiresIn });
+      return url;
+    } catch (error) {
+      console.error('Error generating presigned upload URL:', error);
+      throw new Error(`Failed to generate upload URL: ${error.message}`);
+    }
+  }
+
+  /**
+   * Obtém metadados de um arquivo no S3
+   */
+  async getFileMetadata(s3Key, tenantId) {
+    if (!this.isEnabled) {
+      throw new Error('S3 is not enabled');
+    }
+
+    // Validar acesso ao tenant
+    if (!this.validateTenantAccess(s3Key, tenantId)) {
+      throw new Error('Access denied: File does not belong to this tenant');
+    }
+
+    const command = new HeadObjectCommand({
+      Bucket: this.bucket,
+      Key: s3Key
+    });
+
+    try {
+      const response = await this.client.send(command);
+      return {
+        contentType: response.ContentType,
+        size: response.ContentLength,
+        lastModified: response.LastModified,
+        etag: response.ETag,
+        metadata: response.Metadata,
+        originalName: response.Metadata?.originalName || null
+      };
+    } catch (error) {
+      console.error('Error getting file metadata:', error);
+      throw new Error(`Failed to get file metadata: ${error.message}`);
+    }
   }
 
   /**

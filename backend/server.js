@@ -20,6 +20,7 @@ const { mongooseTenantMiddleware } = require('./plugins/tenantScopePlugin');
 const authRoutes = require('./routes/auth');
 const chatRoutes = require('./routes/chatRoutes');
 const fileRoutes = require('./routes/files');
+const uploadRoutes = require('./routes/upload');
 const agentRoutes = require('./routes/agents');
 const historyRoutes = require('./routes/history');
 const masterRoutes = require('./routes/master');
@@ -192,6 +193,7 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/files', fileRoutes);
+app.use('/api/upload', uploadRoutes); // Rotas de upload com presigned URLs
 app.use('/api/agents', agentRoutes);
 app.use('/api/history', historyRoutes);
 app.use('/api/master', masterRoutes); // Rotas master (sem tenant)
