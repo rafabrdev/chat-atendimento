@@ -13,6 +13,7 @@
 
 import { io } from 'socket.io-client';
 import authService from './authService';
+import errorService from './errorService';
 
 class SocketService {
   constructor() {
@@ -249,8 +250,31 @@ class SocketService {
 
     this.socket.on('tenant-disabled', () => {
       this.logError('Tenant has been disabled');
+      errorService.handleError({
+        code: 'TENANT_INACTIVE',
+        message: 'Seu tenant foi desabilitado. Entre em contato com o administrador.'
+      });
       this.emitToListeners('tenant:disabled');
       this.disconnect();
+    });
+    
+    // Subscription events
+    this.socket.on('subscription-suspended', (data) => {
+      this.logError('Subscription suspended:', data);
+      errorService.handleError({
+        code: 'SUBSCRIPTION_SUSPENDED',
+        message: data.message || 'Sua assinatura foi suspensa.',
+        data
+      });
+    });
+    
+    this.socket.on('plan-limit-reached', (data) => {
+      this.logError('Plan limit reached:', data);
+      errorService.handleError({
+        code: 'PLAN_LIMIT_REACHED',
+        message: data.message || 'Limite do plano atingido.',
+        data
+      });
     });
 
     // Heartbeat events
@@ -285,6 +309,12 @@ class SocketService {
     // Error handling
     this.socket.on('error', (error) => {
       this.logError('Socket error:', error);
+      
+      // Use errorService for centralized handling
+      if (error.code) {
+        errorService.handleError(error);
+      }
+      
       this.emitToListeners('socket:error', { error });
     });
   }

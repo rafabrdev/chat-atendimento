@@ -12,6 +12,8 @@ import PrivateRoute from './components/PrivateRoute.jsx';
 import PublicRoute from './components/PublicRoute.jsx';
 import MainLayout from './components/Layout/MainLayout.jsx';
 import RoleBasedRedirect from './components/RoleBasedRedirect.jsx';
+import ErrorBoundary from './components/ErrorBoundary.jsx';
+import ErrorModal from './components/ErrorModal.jsx';
 
 // Pages
 import Login from './pages/Login.jsx';
@@ -43,10 +45,13 @@ function SocketWrapper({ children }) {
 
 function App() {
   return (
-    <Router>
-      <AuthProvider>
-        <TenantProvider>
-          <div className="App">
+    <ErrorBoundary>
+      <Router>
+        <AuthProvider>
+          <TenantProvider>
+            <div className="App">
+              {/* Global Error Modal */}
+              <ErrorModal />
             <Routes>
             {/* Rotas públicas */}
             <Route 
@@ -216,10 +221,11 @@ function App() {
               },
             }}
           />
-          </div>
-        </TenantProvider>
-      </AuthProvider>
-    </Router>
+            </div>
+          </TenantProvider>
+        </AuthProvider>
+      </Router>
+    </ErrorBoundary>
   );
 }
 

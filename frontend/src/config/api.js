@@ -1,5 +1,6 @@
 import axios from 'axios';
 import authService from '../services/authService';
+import errorService from '../services/errorService';
 import toast from 'react-hot-toast';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -66,11 +67,20 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    // Map error to action
-    const errorAction = authService.mapErrorToAction(error);
+    // Enhanced error handling with errorService
+    if (error.response?.data?.code) {
+      // If backend provides error code, use errorService
+      errorService.handleError({
+        ...error,
+        code: error.response.data.code,
+        data: error.response.data
+      });
+    } else {
+      // Legacy error handling for backward compatibility
+      const errorAction = authService.mapErrorToAction(error);
 
-    // Handle specific error actions
-    switch (errorAction.action) {
+      // Handle specific error actions
+      switch (errorAction.action) {
       case 'TENANT_INACTIVE':
         if (errorAction.showModal) {
           // Show modal (this would be handled by a global modal manager)
@@ -164,11 +174,12 @@ api.interceptors.response.use(
         toast.error(errorAction.message, { duration: 5000 });
         break;
 
-      default:
-        // Only show toast for non-404 errors
-        if (error.response?.status !== 404 && errorAction.severity === 'error') {
-          toast.error(errorAction.message);
-        }
+        default:
+          // Only show toast for non-404 errors
+          if (error.response?.status !== 404 && errorAction.severity === 'error') {
+            toast.error(errorAction.message);
+          }
+      }
     }
 
     // Always reject the promise so the calling code can handle it
