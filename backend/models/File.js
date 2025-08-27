@@ -64,7 +64,16 @@ const fileSchema = new mongoose.Schema({
   // S3 specific fields
   s3Key: {
     type: String,
-    sparse: true // Allow null for local files
+    sparse: true, // Allow null for local files
+    // S3 key deve incluir tenantId: {tenantId}/{year}/{month}/{uuid}_{filename}
+    validate: {
+      validator: function(v) {
+        if (!v) return true; // Permitir null para arquivos locais
+        // Verificar se o s3Key começa com o tenantId
+        return v.startsWith(this.tenantId?.toString() || '');
+      },
+      message: 'S3 key deve começar com tenantId'
+    }
   },
   s3Bucket: {
     type: String,
@@ -83,9 +92,21 @@ const fileSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for faster queries
-fileSchema.index({ conversation: 1, createdAt: -1 });
-fileSchema.index({ uploadedBy: 1, createdAt: -1 });
+// Índices compostos para multi-tenancy e performance
+// Índice principal para buscar arquivos de uma conversa dentro do tenant
+fileSchema.index({ tenantId: 1, conversation: 1, createdAt: -1 });
+
+// Índice para buscar arquivos enviados por um usuário dentro do tenant
+fileSchema.index({ tenantId: 1, uploadedBy: 1, createdAt: -1 });
+
+// Índice para buscar por tipo de arquivo dentro do tenant
+fileSchema.index({ tenantId: 1, fileType: 1, createdAt: -1 });
+
+// Índice para buscar arquivos de uma mensagem específica
+fileSchema.index({ tenantId: 1, message: 1 });
+
+// Índice para arquivos S3 por chave
+fileSchema.index({ tenantId: 1, s3Key: 1 }, { sparse: true });
 
 // Virtual for file extension
 fileSchema.virtual('extension').get(function() {
@@ -115,11 +136,24 @@ fileSchema.methods.determineFileType = function() {
   return 'other';
 };
 
-// Pre-save hook to set file type
+// Pre-save hook to set file type and validate S3 path
 fileSchema.pre('save', function(next) {
   if (!this.fileType || this.fileType === 'other') {
     this.fileType = this.determineFileType();
   }
+  
+  // Se for armazenamento S3, garantir que o caminho inclui tenantId
+  if (this.storageType === 's3' && this.s3Key) {
+    const tenantPrefix = `${this.tenantId}/`;
+    if (!this.s3Key.startsWith(tenantPrefix)) {
+      // Adicionar prefixo do tenant se não existir
+      const date = new Date();
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      this.s3Key = `${tenantPrefix}${year}/${month}/${this.s3Key}`;
+    }
+  }
+  
   next();
 });
 

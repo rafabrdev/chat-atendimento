@@ -142,6 +142,19 @@ userSchema.plugin(tenantScopePlugin, {
   }
 });
 
+// Índices compostos para multi-tenancy
+// Email único por tenant (exceto master que não tem tenant)
+userSchema.index({ tenantId: 1, email: 1 }, { 
+  unique: true,
+  partialFilterExpression: { tenantId: { $exists: true } }
+});
+
+// Índice para performance de busca por status dentro do tenant
+userSchema.index({ tenantId: 1, status: 1, lastSeen: -1 });
+
+// Índice para busca por role dentro do tenant
+userSchema.index({ tenantId: 1, role: 1 });
+
 // Hash password antes de salvar
 userSchema.pre('save', async function(next) {
   // Se a senha não foi modificada, não fazer nada

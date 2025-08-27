@@ -65,8 +65,18 @@ const messageSchema = new mongoose.Schema({
   }
 });
 
-// Índice para buscar mensagens de uma conversa
-messageSchema.index({ conversationId: 1, createdAt: -1 });
+// Índices compostos para multi-tenancy e performance
+// Índice principal para buscar mensagens de uma conversa dentro do tenant
+messageSchema.index({ tenantId: 1, conversationId: 1, createdAt: -1 });
+
+// Índice para buscar mensagens por remetente dentro do tenant
+messageSchema.index({ tenantId: 1, sender: 1, createdAt: -1 });
+
+// Índice para buscar mensagens não lidas dentro do tenant
+messageSchema.index({ tenantId: 1, isRead: 1, createdAt: -1 });
+
+// Índice para buscar por tipo de mensagem
+messageSchema.index({ tenantId: 1, type: 1, createdAt: -1 });
 
 
 // Aplicar plugin de tenant scope

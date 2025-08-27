@@ -79,10 +79,22 @@ const conversationSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Índices para performance
-conversationSchema.index({ status: 1, createdAt: -1 });
-conversationSchema.index({ assignedAgent: 1, status: 1 });
-conversationSchema.index({ client: 1, createdAt: -1 });
+// Índices compostos para multi-tenancy e performance
+// Índice principal para fila de atendimento por tenant
+conversationSchema.index({ tenantId: 1, status: 1, createdAt: -1 });
+
+// Índice para buscar conversas de um agente específico dentro do tenant
+conversationSchema.index({ tenantId: 1, assignedAgent: 1, status: 1 });
+
+// Índice para histórico de conversas de um cliente dentro do tenant
+conversationSchema.index({ tenantId: 1, client: 1, createdAt: -1 });
+
+// Índice para busca por prioridade na fila
+conversationSchema.index({ tenantId: 1, status: 1, priority: -1, createdAt: 1 });
+
+// Índice para relatórios por período
+conversationSchema.index({ tenantId: 1, createdAt: -1 });
+conversationSchema.index({ tenantId: 1, closedAt: -1 });
 
 
 // Aplicar plugin de tenant scope
