@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
-import api from '../config/api';
+import api, { setupAuthAutoRefresh, clearAuthAutoRefresh } from '../config/api';
+import authService from '../services/authService';
 import toast from 'react-hot-toast';
 
 // Estado inicial
@@ -83,20 +84,34 @@ export const AuthProvider = ({ children }) => {
 
   // Carregar usuário do localStorage na inicialização
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const userData = localStorage.getItem('user');
+    const token = authService.getAccessToken();
+    const user = authService.getUser();
 
-    if (token && userData) {
-      try {
-        const user = JSON.parse(userData);
+    if (token && user) {
+      // Check if token is expired
+      if (authService.isTokenExpired(token)) {
+        // Try to refresh
+        authService.refreshAccessToken(api)
+          .then((newToken) => {
+            dispatch({
+              type: AUTH_ACTIONS.LOGIN_SUCCESS,
+              payload: { user: authService.getUser(), token: newToken },
+            });
+            setupAuthAutoRefresh();
+            loadUser();
+          })
+          .catch(() => {
+            // Refresh failed, clear auth
+            authService.clearAuthData();
+            dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: false });
+          });
+      } else {
         dispatch({
           type: AUTH_ACTIONS.LOGIN_SUCCESS,
           payload: { user, token },
         });
+        setupAuthAutoRefresh();
         loadUser();
-      } catch (error) {
-        console.error('Error parsing user data:', error);
-        logout();
       }
     } else {
       dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: false });
@@ -127,18 +142,18 @@ export const AuthProvider = ({ children }) => {
         password,
       });
 
-      const { user, token } = response.data.data;
+      const { user, token, refreshToken } = response.data.data;
 
-      // Salvar no localStorage
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(user));
-      localStorage.setItem('userId', user.id || user._id); // Salvar ID separadamente para fácil acesso
-      localStorage.setItem('tenantId', user.tenantId); // Salvar tenantId
+      // Use authService to store auth data
+      authService.storeAuthData({ token, refreshToken, user });
 
       dispatch({
         type: AUTH_ACTIONS.LOGIN_SUCCESS,
         payload: { user, token },
       });
+
+      // Setup auto-refresh
+      setupAuthAutoRefresh();
 
       toast.success('Login realizado com sucesso!');
       return { success: true };
@@ -158,18 +173,18 @@ export const AuthProvider = ({ children }) => {
       dispatch({ type: AUTH_ACTIONS.LOGIN_START });
 
       const response = await api.post('/auth/register', userData);
-      const { user, token } = response.data.data;
+      const { user, token, refreshToken } = response.data.data;
 
-      // Salvar no localStorage
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(user));
-      localStorage.setItem('userId', user.id || user._id); // Salvar ID separadamente para fácil acesso
-      localStorage.setItem('tenantId', user.tenantId); // Salvar tenantId
+      // Use authService to store auth data
+      authService.storeAuthData({ token, refreshToken, user });
 
       dispatch({
         type: AUTH_ACTIONS.LOGIN_SUCCESS,
         payload: { user, token },
       });
+
+      // Setup auto-refresh
+      setupAuthAutoRefresh();
 
       toast.success('Conta criada com sucesso!');
       return { success: true };
@@ -185,10 +200,12 @@ export const AuthProvider = ({ children }) => {
 
   // Logout
   const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('userId');
-    localStorage.removeItem('tenantId');
+    // Clear auto-refresh timer
+    clearAuthAutoRefresh();
+    
+    // Clear all auth data
+    authService.clearAuthData();
+    
     dispatch({ type: AUTH_ACTIONS.LOGOUT });
     toast.success('Logout realizado com sucesso!');
   };
@@ -199,8 +216,8 @@ export const AuthProvider = ({ children }) => {
       const response = await api.patch('/auth/profile', updateData);
       const updatedUser = response.data.data.user;
 
-      // Atualizar localStorage
-      localStorage.setItem('user', JSON.stringify(updatedUser));
+      // Update user in authService
+      authService.setUser(updatedUser);
 
       dispatch({
         type: AUTH_ACTIONS.UPDATE_USER,
