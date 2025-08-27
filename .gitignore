@@ -23,6 +23,7 @@ CREDENTIALS_PRIVATE.md
 AWS_CREDENTIALS.md
 .env.test.local
 .env.production.local
+WARP.md
 
 # Arquivo de credenciais privadas
 CREDENTIALS_PRIVATE.md
