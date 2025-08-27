@@ -13,6 +13,15 @@ const api = axios.create({
   },
 });
 
+// Criar instância pública para rotas que não requerem autenticação
+export const publicApi = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 30000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
 // Request interceptor - adiciona token e tenant headers
 api.interceptors.request.use(
   (config) => {
@@ -151,6 +160,7 @@ api.interceptors.response.use(
         break;
 
       case 'NETWORK_ERROR':
+        console.error('[API Interceptor] Network error detected:', error);
         toast.error(errorAction.message, { duration: 5000 });
         break;
 

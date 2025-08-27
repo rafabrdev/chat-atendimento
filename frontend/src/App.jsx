@@ -43,11 +43,11 @@ function SocketWrapper({ children }) {
 
 function App() {
   return (
-    <AuthProvider>
-      <TenantProvider>
-        <Router>
-        <div className="App">
-          <Routes>
+    <Router>
+      <AuthProvider>
+        <TenantProvider>
+          <div className="App">
+            <Routes>
             {/* Rotas públicas */}
             <Route 
               path="/login" 
@@ -216,10 +216,10 @@ function App() {
               },
             }}
           />
-        </div>
-        </Router>
-      </TenantProvider>
-    </AuthProvider>
+          </div>
+        </TenantProvider>
+      </AuthProvider>
+    </Router>
   );
 }
 

@@ -4,7 +4,7 @@
  * Service for managing tenant-related API calls
  */
 
-import api from '../config/api';
+import api, { publicApi } from '../config/api';
 import authService from './authService';
 
 class TenantService {
@@ -29,7 +29,8 @@ class TenantService {
         key = 'default';
       }
 
-      const response = await api.get('/tenants/resolve', {
+      // Use publicApi para rota pública sem autenticação
+      const response = await publicApi.get('/tenants/resolve', {
         params: { key }
       });
       

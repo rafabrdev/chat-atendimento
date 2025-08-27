@@ -40,7 +40,8 @@ function dynamicCors(options = {}) {
       'Authorization',
       'X-Requested-With',
       'X-Tenant-ID',
-      'X-Tenant-Key'
+      'X-Tenant-Key',
+      'X-Request-ID'
     ],
     exposedHeaders: [
       'X-Total-Count',

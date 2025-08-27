@@ -134,14 +134,17 @@ export const AuthProvider = ({ children }) => {
 
   // Login
   const login = async (email, password) => {
+    console.log('[AuthContext] Starting login for:', email);
     try {
       dispatch({ type: AUTH_ACTIONS.LOGIN_START });
 
+      console.log('[AuthContext] Making login request...');
       const response = await api.post('/auth/login', {
         email,
         password,
       });
 
+      console.log('[AuthContext] Login response:', response.data);
       const { user, token, refreshToken } = response.data.data;
 
       // Use authService to store auth data
@@ -156,8 +159,12 @@ export const AuthProvider = ({ children }) => {
       setupAuthAutoRefresh();
 
       toast.success('Login realizado com sucesso!');
-      return { success: true };
+      console.log('[AuthContext] Login successful, returning:', { success: true, user });
+      return { success: true, user };
     } catch (error) {
+      console.error('[AuthContext] Login error:', error);
+      console.error('[AuthContext] Error response:', error.response);
+      console.error('[AuthContext] Error message:', error.message);
       dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE });
       
       const message = error.response?.data?.message || 'Erro no login';

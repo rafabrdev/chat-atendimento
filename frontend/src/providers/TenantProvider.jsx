@@ -15,7 +15,7 @@ const TenantContext = createContext({});
 
 // Provider component
 export const TenantProvider = ({ children }) => {
-  const { user, token } = useAuth();
+  const { user, token, isAuthenticated } = useAuth();
   
   // State
   const [tenant, setTenant] = useState(null);
@@ -60,10 +60,19 @@ export const TenantProvider = ({ children }) => {
       console.error('[TenantProvider] Error loading tenant:', err);
       setError(err.message);
       
-      // Show error toast
-      toast.error('Erro ao carregar informações do tenant', {
-        duration: 5000
-      });
+      // Only show error toast for authenticated users
+      // Don't show on public routes to avoid confusion
+      const isPublicPath = typeof window !== 'undefined' && (
+        window.location.pathname === '/login' || 
+        window.location.pathname === '/register' || 
+        window.location.pathname === '/pricing'
+      );
+      
+      if (!isPublicPath) {
+        toast.error('Erro ao carregar informações do tenant', {
+          duration: 5000
+        });
+      }
       
       return null;
     } finally {
@@ -243,17 +252,24 @@ export const TenantProvider = ({ children }) => {
     return tenant?.status === 'inactive';
   }, [tenant]);
   
-  // Load tenant on mount
+  // Load tenant on mount only if we don't need authentication
+  // or if user is already authenticated
   useEffect(() => {
-    loadTenant();
-  }, [loadTenant]);
+    // Only load tenant after we have necessary context
+    // For public pages, we can still try to load tenant by subdomain
+    loadTenant().catch(error => {
+      console.error('[TenantProvider] Failed to load tenant on mount:', error);
+      // Continuar sem tenant - não bloquear a aplicação
+      setLoading(false);
+    });
+  }, []);
   
   // Reload tenant when user changes
   useEffect(() => {
     if (user && token) {
       loadTenant();
     }
-  }, [user?.tenantId, token, loadTenant]);
+  }, [user?.tenantId, token]);
   
   // Context value
   const value = {
@@ -286,8 +302,16 @@ export const TenantProvider = ({ children }) => {
     isTenantInactive
   };
   
-  // Show loading state
-  if (loading && !tenant) {
+  // Show loading state only for authenticated users on private routes
+  // Don't block public routes like login/register
+  const isPublicRoute = typeof window !== 'undefined' && (
+    window.location.pathname === '/login' || 
+    window.location.pathname === '/register' || 
+    window.location.pathname === '/pricing' ||
+    window.location.pathname.startsWith('/checkout')
+  );
+  
+  if (loading && !tenant && !isPublicRoute && isAuthenticated) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -298,8 +322,9 @@ export const TenantProvider = ({ children }) => {
     );
   }
   
-  // Show error state if critical error
-  if (error && !tenant) {
+  // Show error state only for critical errors on private routes
+  // Don't block public routes
+  if (error && !tenant && !isPublicRoute && isAuthenticated) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">

@@ -150,11 +150,15 @@ router.get('/resolve', async (req, res) => {
       success: true,
       resolveMethod,
       data: {
+        _id: tenant._id,
         key: tenant.key,
         name: tenant.name,
         companyName: tenant.companyName,
+        status: tenant.status || 'active',
         plan: tenant.plan || tenant.subscription?.plan,
         allowedOrigins: tenant.allowedOrigins || [],
+        allowedModules: tenant.allowedModules || [],
+        limits: tenant.limits || {},
         branding: tenant.settings?.branding || {}
       }
     });
