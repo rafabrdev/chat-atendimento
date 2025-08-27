@@ -22,9 +22,8 @@ class LockService extends EventEmitter {
       queued: 0
     };
     
-    // Desabilitar Redis por enquanto - usar apenas locks in-memory
-    // this.initRedis();
-    this.redisClient = null;
+    // Tentar conectar ao Redis se disponível
+    this.initRedis();
   }
 
   /**
