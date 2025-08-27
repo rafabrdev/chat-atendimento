@@ -372,7 +372,8 @@ notificationPreferencesSchema.statics.createDefaultPreferences = async function(
 };
 
 // Plugin de tenant scope
-notificationPreferencesSchema.plugin(require('../plugins/tenantPlugin'));
+const { tenantScopePlugin } = require('../plugins/tenantScopePlugin');
+notificationPreferencesSchema.plugin(tenantScopePlugin);
 
 const NotificationPreferences = mongoose.model('NotificationPreferences', notificationPreferencesSchema);
 

@@ -287,7 +287,8 @@ notificationSchema.statics.groupSimilarNotifications = async function(userId, te
 };
 
 // Plugin de tenant scope
-notificationSchema.plugin(require('../plugins/tenantPlugin'));
+const { tenantScopePlugin } = require('../plugins/tenantScopePlugin');
+notificationSchema.plugin(tenantScopePlugin);
 
 // Hooks
 notificationSchema.pre('save', function(next) {
