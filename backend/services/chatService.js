@@ -258,9 +258,11 @@ class ChatService {
     });
   }
 
-  async assignConversationToAgent(conversationId, agentId) {
-    // Resource key para o lock
-    const lockResource = `conversation:${conversationId}`;
+  async assignConversationToAgent(conversationId, agentId, tenantId = null) {
+    // Resource key para o lock - incluir tenantId para evitar conflitos entre tenants
+    const lockResource = tenantId 
+      ? `tenant:${tenantId}:conversation:${conversationId}`
+      : `conversation:${conversationId}`;
     const lockHolder = `agent:${agentId}`;
     
     // Configurações do lock
@@ -308,6 +310,11 @@ class ChatService {
         throw new Error('Conversa não está mais disponível');
       }
 
+      // Validar tenantId se fornecido
+      if (tenantId && currentConversation.tenantId?.toString() !== tenantId.toString()) {
+        throw new Error('Conversa não pertence ao tenant do usuário');
+      }
+
       // Verificar se o agente existe e está disponível
       const agent = await User.findOne({
         _id: agentId,
@@ -318,6 +325,11 @@ class ChatService {
       if (!agent) {
         throw new Error('Agente não encontrado ou não disponível');
       }
+      
+      // Validar que o agente pertence ao mesmo tenant se aplicável
+      if (tenantId && agent.tenantId?.toString() !== tenantId.toString()) {
+        throw new Error('Agente não pertence ao tenant da conversa');
+      }
 
       // Usar transação para garantir atomicidade
       const session = await Conversation.startSession();
@@ -326,12 +338,20 @@ class ChatService {
       try {
         await session.startTransaction();
         
+        // Preparar filtro com tenantId se fornecido
+        const updateFilter = {
+          _id: conversationId,
+          status: 'waiting' // Garantir que ainda está esperando
+        };
+        
+        // Adicionar tenantId ao filtro se fornecido
+        if (tenantId) {
+          updateFilter.tenantId = tenantId;
+        }
+        
         // Atualizar conversa atomicamente
         conversation = await Conversation.findOneAndUpdate(
-          {
-            _id: conversationId,
-            status: 'waiting' // Garantir que ainda está esperando
-          },
+          updateFilter,
           {
             assignedAgentId: agentId,
             assignedAgent: agentId,

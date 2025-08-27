@@ -355,17 +355,27 @@ router.patch('/conversations/:id/accept', async (req, res) => {
       });
     }
     
+    // Obter tenantId do usuário ou middleware
+    const tenantId = req.tenantId || 
+                     (req.user.tenantId?._id || req.user.tenantId);
+    
     const conversationId = req.params.id;
+    
+    // Chamar serviço passando tenantId para validação
     const conversation = await chatService.assignConversationToAgent(
       conversationId,
-      req.user._id
+      req.user._id,
+      tenantId
     );
     
-    // Notificar via WebSocket
+    // Notificar via WebSocket usando rooms isoladas por tenant
     const io = req.app.get('io');
     
-    // Notificar todos na conversa
-    io.to(conversationId).emit('conversation-accepted', {
+    // Room específica do tenant e conversa
+    const tenantChatRoom = `tenant:${conversation.tenantId}:chat:${conversationId}`;
+    
+    // Notificar todos na room da conversa do tenant
+    io.to(tenantChatRoom).emit('conversation-accepted', {
       conversationId,
       agentId: req.user._id,
       agentName: req.user.name,
@@ -374,7 +384,8 @@ router.patch('/conversations/:id/accept', async (req, res) => {
     
     // Notificar o cliente específico para atualizar sua lista
     if (conversation.client) {
-      io.to(`user-${conversation.client}`).emit('conversation-status-changed', {
+      const clientRoom = `tenant:${conversation.tenantId}:user:${conversation.client}`;
+      io.to(clientRoom).emit('conversation-status-changed', {
         conversationId,
         status: 'active',
         assignedAgent: {
@@ -384,12 +395,31 @@ router.patch('/conversations/:id/accept', async (req, res) => {
       });
     }
     
-    // Notificar todos os agentes para atualizar a fila
-    io.emit('queue-updated');
+    // Notificar todos os agentes DO MESMO TENANT para atualizar a fila
+    const tenantRoom = `tenant:${conversation.tenantId}:agents`;
+    io.to(tenantRoom).emit('queue-updated');
     
     res.json(conversation);
   } catch (error) {
     console.error('Erro ao aceitar conversa:', error);
+    
+    // Retornar 409 Conflict se a conversa já foi aceita
+    if (error.message.includes('já foi aceita') || 
+        error.message.includes('não está mais disponível')) {
+      return res.status(409).json({ 
+        error: error.message,
+        code: 'CONVERSATION_ALREADY_ACCEPTED' 
+      });
+    }
+    
+    // Retornar 403 Forbidden para erros de tenant
+    if (error.message.includes('não pertence ao tenant')) {
+      return res.status(403).json({ 
+        error: error.message,
+        code: 'TENANT_MISMATCH' 
+      });
+    }
+    
     res.status(400).json({ error: error.message });
   }
 });

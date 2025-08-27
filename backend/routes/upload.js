@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateJWT } = require('../middleware/jwtAuth');
-const tenantResolver = require('../middleware/tenantResolver');
+const { loadTenant } = require('../middleware/tenantMiddleware');
 const {
   generatePresignedUploadUrl,
   generatePresignedDownloadUrl,
@@ -11,7 +11,7 @@ const {
 
 // Apply authentication and tenant resolution to all routes
 router.use(authenticateJWT);
-router.use(tenantResolver);
+router.use(loadTenant);
 
 /**
  * @route   POST /api/upload/presigned-url
