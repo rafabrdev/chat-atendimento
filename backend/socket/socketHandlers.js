@@ -147,18 +147,32 @@ class SocketHandlers {
     }
 
     if (conversation) {
-      socket.join(`conversation:${data.conversationId}`);
-      console.log(`User ${connection.userId} successfully joined conversation ${data.conversationId}`);
+      // Usar room com prefixo de tenant para garantir isolamento
+      const roomName = socket.tenantId 
+        ? `tenant:${socket.tenantId}:chat:${data.conversationId}`
+        : `conversation:${data.conversationId}`; // Fallback para compat
+        
+      socket.join(roomName);
+      console.log(`[SocketHandlers] User ${connection.userId} joined room: ${roomName}`);
       
       // Notificar que entrou na sala
-      socket.emit('joined-conversation', { conversationId: data.conversationId });
+      socket.emit('joined-conversation', { 
+        conversationId: data.conversationId,
+        room: roomName
+      });
     } else {
-      console.error(`User ${connection.userId} denied access to conversation ${data.conversationId}`);
+      console.error(`[SocketHandlers] User ${connection.userId} denied access to conversation ${data.conversationId}`);
     }
   }
 
   handleLeaveConversation(socket, data) {
-    socket.leave(`conversation:${data.conversationId}`);
+    // Sair da room com prefixo de tenant
+    const roomName = socket.tenantId 
+      ? `tenant:${socket.tenantId}:chat:${data.conversationId}`
+      : `conversation:${data.conversationId}`;
+      
+    socket.leave(roomName);
+    console.log(`[SocketHandlers] User left room: ${roomName}`);
   }
 
   async handleMessage(socket, data) {
@@ -202,9 +216,11 @@ class SocketHandlers {
 
       console.log('Message saved:', message._id);
 
-      // Emitir mensagem para todos na conversa
-      const room = `conversation:${data.conversationId}`;
-      console.log('Emitting to room:', room);
+      // Emitir mensagem para todos na conversa com isolamento de tenant
+      const room = socket.tenantId 
+        ? `tenant:${socket.tenantId}:chat:${data.conversationId}`
+        : `conversation:${data.conversationId}`;
+      console.log('[SocketHandlers] Emitting to room:', room);
       
       // Emitir no namespace root (sem /chat) - IMEDIATAMENTE
       this.io.to(room).emit('new-message', message);
@@ -216,19 +232,27 @@ class SocketHandlers {
         timestamp: Date.now() 
       });
       
-      // Emitir atualização da conversa para todos os usuários da empresa
-      if (connection.companyId) {
+      // Emitir atualização da conversa para todos os usuários do tenant
+      if (socket.tenantId) {
+        this.io.to(`tenant:${socket.tenantId}`).emit('conversation-updated', {
+          conversationId: data.conversationId,
+          lastMessage: message,
+          tenantId: socket.tenantId
+        });
+        
+        // Emitir para agentes do tenant se necessário
+        if (connection.role === 'client') {
+          this.io.to(`tenant:${socket.tenantId}:agents`).emit('new-message-notification', {
+            conversationId: data.conversationId,
+            message,
+            tenantId: socket.tenantId
+          });
+        }
+      } else if (connection.companyId) {
+        // Fallback para compatibilidade
         this.io.to(`company:${connection.companyId}`).emit('conversation-updated', {
           conversationId: data.conversationId,
           lastMessage: message
-        });
-      }
-
-      // Emitir para agentes se necessário
-      if (connection.role === 'client') {
-        this.io.to('agents').emit('new-message-notification', {
-          conversationId: data.conversationId,
-          message
         });
       }
       
@@ -243,9 +267,14 @@ class SocketHandlers {
     const connection = this.connectedUsers.get(socket.id);
     if (!connection) return;
 
-    socket.to(`conversation:${data.conversationId}`).emit('user-typing', {
+    const room = socket.tenantId 
+      ? `tenant:${socket.tenantId}:chat:${data.conversationId}`
+      : `conversation:${data.conversationId}`;
+      
+    socket.to(room).emit('user-typing', {
       userId: connection.userId,
-      isTyping: true
+      isTyping: true,
+      tenantId: socket.tenantId
     });
   }
 
@@ -253,9 +282,14 @@ class SocketHandlers {
     const connection = this.connectedUsers.get(socket.id);
     if (!connection) return;
 
-    socket.to(`conversation:${data.conversationId}`).emit('user-typing', {
+    const room = socket.tenantId 
+      ? `tenant:${socket.tenantId}:chat:${data.conversationId}`
+      : `conversation:${data.conversationId}`;
+      
+    socket.to(room).emit('user-typing', {
       userId: connection.userId,
-      isTyping: false
+      isTyping: false,
+      tenantId: socket.tenantId
     });
   }
 
