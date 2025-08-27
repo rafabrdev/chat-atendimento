@@ -50,40 +50,9 @@ const io = socketIo(server, {
   transports: ['websocket', 'polling'] // Priorizar websocket
 });
 
-// Configurar Redis adapter para escalabilidade horizontal
-if (process.env.REDIS_URL || process.env.ENABLE_REDIS_ADAPTER === 'true') {
-  const { createAdapter } = require('@socket.io/redis-adapter');
-  const { createClient } = require('redis');
-  
-  const pubClient = createClient({ 
-    url: process.env.REDIS_URL || 'redis://localhost:6379',
-    retry_strategy: (options) => {
-      if (options.error && options.error.code === 'ECONNREFUSED') {
-        console.error('[Redis] Connection refused');
-        return new Error('Redis connection refused');
-      }
-      if (options.total_retry_time > 1000 * 60) {
-        return new Error('Redis retry time exhausted');
-      }
-      if (options.attempt > 10) {
-        return undefined;
-      }
-      return Math.min(options.attempt * 100, 3000);
-    }
-  });
-  
-  const subClient = pubClient.duplicate();
-  
-  Promise.all([pubClient.connect(), subClient.connect()]).then(() => {
-    io.adapter(createAdapter(pubClient, subClient));
-    console.log('✅ Redis adapter configurado para Socket.IO');
-  }).catch(err => {
-    console.error('[Redis] Erro ao conectar:', err);
-    console.log('⚠️  Socket.IO rodando sem Redis (modo single-server)');
-  });
-} else {
-  console.log('📡 Socket.IO rodando em modo single-server (sem Redis)');
-}
+// Redis desabilitado - usar apenas modo single-server
+// TODO: Configurar Redis quando necessário para produção
+console.log('📡 Socket.IO rodando em modo single-server (sem Redis)');
 
 // Inicializar middleware de Socket.IO para tenant
 const socketTenantMiddleware = new SocketTenantMiddleware();
