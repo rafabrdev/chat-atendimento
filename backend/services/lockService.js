@@ -30,29 +30,48 @@ class LockService extends EventEmitter {
    * Inicializa conexão com Redis se disponível
    */
   async initRedis() {
+    // Skip Redis if explicitly disabled
+    if (process.env.DISABLE_REDIS === 'true') {
+      console.log('ℹ️ Redis disabled by configuration, using in-memory locks');
+      this.redisClient = null;
+      return;
+    }
+
+    // Skip Redis if no URL configured
+    if (!process.env.REDIS_URL) {
+      console.log('ℹ️ No REDIS_URL configured, using in-memory locks');
+      this.redisClient = null;
+      return;
+    }
+
     try {
       const redis = require('redis');
       this.redisClient = redis.createClient({
-        url: process.env.REDIS_URL || 'redis://localhost:6379',
+        url: process.env.REDIS_URL,
         socket: {
+          connectTimeout: 5000,
           reconnectStrategy: (retries) => {
-            if (retries > 10) {
-              console.log('⚠️ Redis unavailable, using in-memory locks');
+            if (retries > 3) {
+              console.log('⚠️ Redis connection failed after 3 attempts, using in-memory locks');
               this.redisClient = null;
               return false;
             }
-            return Math.min(retries * 100, 3000);
+            return Math.min(retries * 100, 1000);
           }
         }
       });
 
       this.redisClient.on('error', (err) => {
-        console.error('Redis error:', err.message);
-        this.redisClient = null;
+        // Silently handle Redis errors
+        if (!this.redisErrorLogged) {
+          console.log('⚠️ Redis connection error, using in-memory locks');
+          this.redisErrorLogged = true;
+        }
       });
 
       await this.redisClient.connect();
       console.log('✅ Redis connected for distributed locks');
+      this.redisErrorLogged = false;
     } catch (error) {
       console.log('ℹ️ Redis not available, using in-memory locks');
       this.redisClient = null;

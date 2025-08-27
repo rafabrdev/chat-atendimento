@@ -51,38 +51,46 @@ const io = socketIo(server, {
 });
 
 // Configurar Redis adapter para escalabilidade horizontal
-if (process.env.REDIS_URL || process.env.ENABLE_REDIS_ADAPTER === 'true') {
-  const { createAdapter } = require('@socket.io/redis-adapter');
-  const { createClient } = require('redis');
-  
-  const pubClient = createClient({ 
-    url: process.env.REDIS_URL || 'redis://localhost:6379',
-    retry_strategy: (options) => {
-      if (options.error && options.error.code === 'ECONNREFUSED') {
-        console.error('[Redis] Connection refused');
-        return new Error('Redis connection refused');
-      }
-      if (options.total_retry_time > 1000 * 60) {
-        return new Error('Redis retry time exhausted');
-      }
-      if (options.attempt > 10) {
-        return undefined;
-      }
-      return Math.min(options.attempt * 100, 3000);
+if (process.env.REDIS_URL && process.env.DISABLE_REDIS !== 'true') {
+  // Tentar configurar Redis de forma assíncrona sem bloquear o servidor
+  (async () => {
+    try {
+      const { createAdapter } = require('@socket.io/redis-adapter');
+      const { createClient } = require('redis');
+      
+      const pubClient = createClient({ 
+        url: process.env.REDIS_URL,
+        socket: {
+          connectTimeout: 5000, // Timeout de 5 segundos
+          reconnectStrategy: (retries) => {
+            if (retries > 3) {
+              console.log('⚠️  Redis não disponível após 3 tentativas, Socket.IO rodando em modo single-server');
+              return false; // Parar de tentar reconectar
+            }
+            return Math.min(retries * 500, 2000);
+          }
+        }
+      });
+      
+      const subClient = pubClient.duplicate();
+      
+      pubClient.on('error', () => {}); // Silenciar erros do Redis
+      subClient.on('error', () => {}); // Silenciar erros do Redis
+      
+      await Promise.race([
+        Promise.all([pubClient.connect(), subClient.connect()]),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Redis connection timeout')), 5000))
+      ]);
+      
+      io.adapter(createAdapter(pubClient, subClient));
+      console.log('✅ Redis adapter configurado para Socket.IO (modo cluster)');
+    } catch (err) {
+      // Falha silenciosa - continuar sem Redis
+      console.log('ℹ️ Socket.IO rodando em modo single-server (Redis não disponível)');
     }
-  });
-  
-  const subClient = pubClient.duplicate();
-  
-  Promise.all([pubClient.connect(), subClient.connect()]).then(() => {
-    io.adapter(createAdapter(pubClient, subClient));
-    console.log('✅ Redis adapter configurado para Socket.IO');
-  }).catch(err => {
-    console.error('[Redis] Erro ao conectar:', err);
-    console.log('⚠️  Socket.IO rodando sem Redis (modo single-server)');
-  });
+  })();
 } else {
-  console.log('📡 Socket.IO rodando em modo single-server (sem Redis)');
+  console.log('📡 Socket.IO rodando em modo single-server (Redis não configurado)');
 }
 
 // Inicializar middleware de Socket.IO para tenant
