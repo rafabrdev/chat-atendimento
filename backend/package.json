@@ -17,8 +17,12 @@
     "seed": "node seeds/run-all-seeds.js",
     "seed:tenant": "node seeds/001-tenant-default.js",
     "seed:migrate": "node seeds/002-migrate-existing-data.js",
-    "test": "mocha tests/**/*.test.js --timeout 10000",
-    "test:watch": "mocha tests/**/*.test.js --watch"
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:unit": "jest tests/unit",
+    "test:integration": "jest tests/integration",
+    "test:mocha": "mocha tests/**/*.test.js --timeout 10000"
   },
   "keywords": [],
   "author": "",
@@ -60,16 +64,20 @@
     "winston-daily-rotate-file": "^5.0.0"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@types/multer": "^2.0.0",
     "chai": "^6.0.1",
     "cross-env": "^7.0.3",
     "eslint": "^9.33.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
+    "jest": "^30.1.0",
     "mocha": "^11.7.1",
+    "mongodb-memory-server": "^10.2.0",
     "nodemon": "^3.1.10",
     "prettier": "^3.6.2",
     "sinon": "^21.0.0",
-    "socket.io-client": "^4.8.1"
+    "socket.io-client": "^4.8.1",
+    "supertest": "^7.1.4"
   }
 }
